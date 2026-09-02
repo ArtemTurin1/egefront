@@ -1,32 +1,41 @@
-/* Глобальные переменные для чёрно-зелёной темы */
+/* ===================================================
+   ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ — чёрно-зелёная тема
+   =================================================== */
 :root {
-  --bg-primary: #0a0a0a;
+  --bg-primary:   #0a0a0a;
   --bg-secondary: #111111;
-  --bg-card: #1a1a1a;
-  --bg-card-hover: #222222;
-  --accent: #00ff88;
-  --accent-hover: #00cc6a;
+  --bg-card:      #1a1a1a;
+  --bg-card-hover:#222222;
+  --bg-tertiary:  #161616;
+
+  --accent:             #00ff88;
+  --accent-hover:       #00cc6a;
   --accent-transparent: rgba(0, 255, 136, 0.1);
-  --text-primary: #ffffff;
+
+  --text-primary:   #ffffff;
   --text-secondary: #b0b0b0;
-  --text-muted: #888888;
-  --border: #333333;
-  --border-hover: #444444;
+  --text-muted:     #666666;
+
+  --border:       #2a2a2a;
+  --border-hover: #3a3a3a;
+  --border-light: #333333;
+
   --success: #00ff88;
-  --error: #ff4444;
-  --warning: #ffaa00;
-  
-  /* Тени с зелёным свечением */
-  --shadow-sm: 0 2px 8px rgba(0, 255, 136, 0.05);
-  --shadow-md: 0 4px 16px rgba(0, 255, 136, 0.08);
-  --shadow-lg: 0 8px 32px rgba(0, 255, 136, 0.12);
-  
-  /* Градиенты */
+  --error:   #e05555;
+  --warning: #d4943a;
+
+  /* Тени — БЕЗ цветного свечения */
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+
   --gradient-primary: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
-  --gradient-card: linear-gradient(145deg, #1a1a1a 0%, #111111 100%);
+  --gradient-card:    linear-gradient(145deg, #1a1a1a 0%, #111111 100%);
 }
 
-/* Базовые стили */
+/* ===================================================
+   СБРОС И БАЗОВЫЕ СТИЛИ
+   =================================================== */
 * {
   margin: 0;
   padding: 0;
@@ -39,6 +48,7 @@ body {
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   line-height: 1.6;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
 }
 
 #app {
@@ -46,198 +56,198 @@ body {
   background: var(--bg-primary);
 }
 
-/* Контейнеры */
+/* ===================================================
+   КОНТЕЙНЕРЫ
+   =================================================== */
 .app_container {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  padding-bottom: 80px; /* Место для навигации */
+  padding-bottom: 80px;
 }
 
 .page {
-  padding: 20px;
-  max-width: 1200px;
+  padding: 24px 20px;
+  max-width: 1100px;
   margin: 0 auto;
   width: 100%;
 }
 
 .container {
   display: flex;
-  gap: 24px;
+  gap: 20px;
   align-items: flex-start;
 }
 
-/* Карточки */
+/* ===================================================
+   КАРТОЧКИ
+   =================================================== */
 .card {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 24px;
-  backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
-  box-shadow: var(--shadow-sm);
+  border-radius: 12px;
+  padding: 20px;
+  transition: border-color 0.2s ease;
 }
 
 .card:hover {
-  border-color: var(--accent);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
+  border-color: var(--border-hover);
 }
 
-/* Кнопки */
+/* ===================================================
+   КНОПКИ
+   =================================================== */
 .button {
   background: var(--gradient-primary);
   color: #000;
   border: none;
-  padding: 12px 24px;
-  border-radius: 12px;
-  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: opacity 0.15s ease;
   text-decoration: none;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-size: 14px;
+  line-height: 1.4;
+  white-space: nowrap;
 }
 
-.button:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
+.button:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .button.ghost {
   background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.button.ghost:hover:not(:disabled) {
+  border-color: var(--accent);
   color: var(--accent);
-  border: 2px solid var(--accent);
 }
 
-.button.ghost:hover {
-  background: var(--accent-transparent);
+.button.warning {
+  background: transparent;
+  color: var(--warning);
+  border: 1px solid var(--warning);
 }
 
-/* Инпуты */
+.button.warning:hover:not(:disabled) {
+  background: rgba(212, 148, 58, 0.1);
+}
+
+.button.small {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+/* ===================================================
+   ИНПУТЫ
+   =================================================== */
 .input {
   width: 100%;
-  padding: 14px 16px;
-  background: var(--bg-secondary);
-  border: 2px solid var(--border);
-  border-radius: 12px;
+  padding: 11px 14px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
   color: var(--text-primary);
   font-size: 14px;
-  transition: all 0.3s ease;
+  transition: border-color 0.15s ease;
+  font-family: inherit;
 }
 
 .input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-transparent);
 }
 
 .input::placeholder {
   color: var(--text-muted);
 }
 
-/* Навигационная панель (только иконки) */
+select.input {
+  cursor: pointer;
+}
+
+/* ===================================================
+   НИЖНЯЯ НАВИГАЦИЯ (мобильная)
+   =================================================== */
 .navbar {
   position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: 0;
+  left: 0;
+  right: 0;
   display: flex;
-  gap: 12px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 12px;
-  backdrop-filter: blur(20px);
-  box-shadow: var(--shadow-lg);
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  padding: 8px 20px;
+  justify-content: space-around;
   z-index: 1000;
 }
 
-.nav-link {
-  width: 50px;
-  height: 50px;
+.bottom-nav-link {
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
-  color: var(--text-secondary);
+  border-radius: 8px;
+  color: var(--text-muted);
   text-decoration: none;
-  transition: all 0.3s ease;
-  position: relative;
+  transition: color 0.15s ease, background 0.15s ease;
 }
 
-.nav-link:hover {
+.bottom-nav-link:hover,
+.bottom-nav-link.router-link-active {
   color: var(--accent);
   background: var(--accent-transparent);
 }
 
-.nav-link.router-link-active {
-  color: var(--accent);
-  background: var(--accent-transparent);
-}
-
-.nav-link.router-link-active::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 4px;
-  height: 4px;
-  background: var(--accent);
-  border-radius: 50%;
-}
-
-/* Бейджи */
-.level-badge {
-  background: var(--gradient-primary);
-  color: #000;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-weight: 700;
-  font-size: 12px;
-  display: inline-block;
-}
-
-/* Модальные окна */
+/* ===================================================
+   МОДАЛЬНЫЕ ОКНА
+   =================================================== */
 .modal-backdrop {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.75);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 2000;
-  backdrop-filter: blur(10px);
+  padding: 20px;
 }
 
 .modal {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: 14px;
   max-width: 500px;
-  width: 90%;
-  margin: 20px;
-  animation: modalAppear 0.3s ease;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: modalAppear 0.2s ease;
 }
 
 @keyframes modalAppear {
-  from {
-    opacity: 0;
-    transform: scale(0.9) translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
+  from { opacity: 0; transform: scale(0.97) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 
-/* Утилиты */
+/* ===================================================
+   УТИЛИТЫ
+   =================================================== */
 .h-stack {
   display: flex;
   align-items: center;
@@ -259,59 +269,35 @@ body {
   text-align: center;
 }
 
-/* Адаптивность */
+/* ===================================================
+   АДАПТИВНОСТЬ
+   =================================================== */
 @media (max-width: 768px) {
   .container {
     flex-direction: column;
   }
-  
   .page {
     padding: 16px;
   }
-  
   .card {
-    padding: 20px;
-  }
-  
-  .navbar {
-    bottom: 10px;
-    padding: 10px;
-  }
-  
-  .nav-link {
-    width: 44px;
-    height: 44px;
+    padding: 16px;
   }
 }
 
-/* Анимации */
+/* ===================================================
+   ПЕРЕХОДЫ РОУТЕРА
+   =================================================== */
 .fade-enter-active, .fade-leave-active {
-  transition: opacity 0.3s ease;
+  transition: opacity 0.2s ease;
 }
-
 .fade-enter-from, .fade-leave-to {
   opacity: 0;
 }
 
-/* Специфичные стили для Telegram Mini App */
-.tg-background {
-  background: var(--bg-primary);
-}
-
-/* Кастомный скроллбар */
-::-webkit-scrollbar {
-  width: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--accent);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--accent-hover);
-}
+/* ===================================================
+   СКРОЛЛБАР
+   =================================================== */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-secondary); }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #444; }

@@ -1,19 +1,20 @@
 import { store } from './store.js'
 
 export const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
-export const API_KEY = import.meta.env.VITE_API_KEY || '81d046059d166ace90e2312256d903ae08c315724d366cd1afa159b1e2b21d0f'
 
 async function request(path, opts = {}) {
   try {
     const authHeaders = getAuthHeaders()
     const headers = {
       'Content-Type': 'application/json',
-      'X-API-Key': API_KEY,
       ...authHeaders,
       ...(opts.headers || {})
     }
 
-    console.log('🔑 Headers:', { path, headers })
+    // Если отправляем FormData (для файлов), удаляем Content-Type, чтобы браузер сам поставил boundary
+    if (opts.body instanceof FormData) {
+      delete headers['Content-Type']
+    }
 
     const res = await fetch(API_BASE + path, { ...opts, headers })
 
@@ -26,34 +27,45 @@ async function request(path, opts = {}) {
       }
 
       let errorMessage = errorData.detail || errorData.message || JSON.stringify(errorData)
-      console.error('❌ Ошибка:', errorMessage)
+      console.error('API Error Response:', errorMessage)
       throw new Error(errorMessage)
     }
 
     return await res.json()
   } catch (error) {
-    console.error('API Error:', error.message)
+    console.error('API Request Failed:', error.message)
     throw error
   }
 }
 
 function getAuthHeaders() {
   const headers = {}
-  const storedEmail = localStorage.getItem('email')
-  if (storedEmail) {
-    headers['X-EMAIL'] = storedEmail
+  const token = localStorage.getItem('token')
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  const email = localStorage.getItem('email')
+  if (email) {
+    headers['X-EMAIL'] = email
   }
   return headers
 }
 
 export const api = {
-  // ===== YANDEX OAuth =====
-  getYandexAuthUrl: async () => {
-    const result = await request('/api/auth/yandex/url')
-    return result.auth_url
+  // ===== АУТЕНТИФИКАЦИЯ =====
+
+  getMe: async () => {
+    try {
+      const profile = await request('/api/auth/me')
+      store.setProfile(profile)
+      store.setUser(profile)
+      return profile
+    } catch (e) {
+      console.warn('Could not fetch /api/auth/me:', e.message)
+      return null
+    }
   },
 
-  // ===== TELEGRAM Direct (мини-приложение) =====
   telegramAuth: async (telegramUser) => {
     const result = await request('/api/auth/telegram', {
       method: 'POST',
@@ -63,332 +75,236 @@ export const api = {
         username: telegramUser.username || ''
       })
     })
-    if (result.email) {
-      localStorage.setItem('email', result.email)
-      const profile = await api.getProfile(result.email)
-      store.setProfile(profile)
+    if (result.access_token) {
+      localStorage.setItem('token', result.access_token)
+    }
+    if (result.user && result.user.email) {
+      localStorage.setItem('email', result.user.email)
+      store.setUser(result.user)
+      store.setProfile(result.user)
     }
     return result
   },
 
-  // ===== РЕГИСТРАЦИЯ ПО КОДУ =====
   verifyCode: async (code) => {
-    const result = await request('/api/auth/code/verify', {
+    return await request('/api/auth/code/verify', {
       method: 'POST',
-      body: JSON.stringify({ code: code.trim() })
+      body: JSON.stringify({ code: code.trim().toUpperCase() })
     })
-    return result
   },
 
-  registerWithCode: async (code, name) => {
+  registerWithCode: async (code, name = '') => {
     const result = await request('/api/auth/code/register', {
       method: 'POST',
       body: JSON.stringify({
-        code: code.trim(),
-        name: name.trim()
+        code: code.trim().toUpperCase(),
+        name: (name || '').trim()
       })
     })
-    if (result.email) {
-      localStorage.setItem('email', result.email)
-      const profile = await api.getProfile(result.email)
-      store.setProfile(profile)
-      if (result.status === 'new_user') {
-        console.log('✅ Новый пользователь зарегистрирован')
-      } else if (result.status === 'existing_user') {
-        console.log('ℹ️ Пользователь уже зарегистрирован, выполняем вход')
-      }
+    if (result.access_token) {
+      localStorage.setItem('token', result.access_token)
+    }
+    if (result.user && result.user.email) {
+      localStorage.setItem('email', result.user.email)
+      store.setUser(result.user)
+      store.setProfile(result.user)
     }
     return result
   },
 
-  loginWithCode: async (code, telegramId) => {
-    const result = await request('/api/auth/code/login', {
+  registerWithEmail: async (email, password, name, isMentor = false) => {
+    const result = await request('/api/auth/register-email', {
       method: 'POST',
       body: JSON.stringify({
-        code: code.trim(),
-        telegram_id: telegramId
+        email: email.trim().toLowerCase(),
+        password,
+        name: name.trim(),
+        is_mentor: isMentor
       })
     })
-    if (result.email) {
-      localStorage.setItem('email', result.email)
-      const profile = await api.getProfile(result.email)
-      store.setProfile(profile)
+    if (result.access_token) {
+      localStorage.setItem('token', result.access_token)
+    }
+    if (result.user && result.user.email) {
+      localStorage.setItem('email', result.user.email)
+      store.setUser(result.user)
+      store.setProfile(result.user)
     }
     return result
   },
 
-  markCodeAsUsed: async (code) => {
-    return await request('/api/auth/code/mark-used', {
+  loginWithEmail: async (email, password) => {
+    const result = await request('/api/auth/login-email', {
       method: 'POST',
-      body: JSON.stringify({ code: code.trim() })
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+        password
+      })
     })
-  },
-
-  // ===== ПОЛУЧЕНИЕ ПОЛЬЗОВАТЕЛЬСКОГО КОДА ДЛЯ ВХОДА =====
-  getUserCode: async (telegramId) => {
-    const result = await request('/api/auth/code/get-user-code', {
-      method: 'POST',
-      body: JSON.stringify({ telegram_id: telegramId })
-    })
+    if (result.access_token) {
+      localStorage.setItem('token', result.access_token)
+    }
+    if (result.user && result.user.email) {
+      localStorage.setItem('email', result.user.email)
+      store.setUser(result.user)
+      store.setProfile(result.user)
+    }
     return result
   },
 
-  // ===== Профиль и статистика =====
-  getProfile: async (identifier) => {
-    try {
-      const path = `/api/profile/email/${identifier}`
-      const profile = await request(path)
-      store.setProfile(profile)
-      return profile
-    } catch (error) {
-      console.error('❌ getProfile Error:', error)
-      return null
-    }
-  },
-
-  updateProfile: (newName) => {
-    const headers = getAuthHeaders()
-    return request('/api/profile/update', {
-      method: 'PUT',
-      body: JSON.stringify({ name: newName }),
-      headers
+  linkTelegramCode: async (code) => {
+    const result = await request('/api/auth/link-telegram', {
+      method: 'POST',
+      body: JSON.stringify({ code: code.trim().toUpperCase() })
     })
-  },
-
-  getStats: async (identifier) => {
-    try {
-      const path = `/api/stats/email/${identifier}`
-      const stats = await request(path)
-      return stats
-    } catch (error) {
-      console.error('❌ getStats Error:', error)
-      return null
+    if (result.user) {
+      store.setUser(result.user)
+      store.setProfile(result.user)
     }
+    return result
   },
 
-  getTimedStats: async (subject = null) => {
-    try {
-      const headers = getAuthHeaders()
-      if (!headers['X-EMAIL']) {
-        return {
-          total_attempts: 0,
-          correct_answers: 0,
-          incorrect_answers: 0,
-          success_rate: 0,
-          avg_problems_per_minute: 0,
-          total_time_seconds: 0
-        }
-      }
-      const path = subject ? `/api/timed-stats/?subject=${subject}` : '/api/timed-stats/'
-      const stats = await request(path, { headers })
-      return {
-        total_attempts: stats.total_attempts || 0,
-        correct_answers: stats.correct_answers || 0,
-        incorrect_answers: stats.incorrect_answers || 0,
-        success_rate: stats.success_rate || 0,
-        avg_problems_per_minute: stats.avg_problems_per_minute || 0,
-        total_time_seconds: stats.total_time_seconds || 0
-      }
-    } catch (error) {
-      console.error('❌ getTimedStats Error:', error)
-      return {
-        total_attempts: 0,
-        correct_answers: 0,
-        incorrect_answers: 0,
-        success_rate: 0,
-        avg_problems_per_minute: 0,
-        total_time_seconds: 0
-      }
-    }
-  },
 
-  // ===== НАСТАВНИКИ И УЧЕНИКИ =====
-  getProfileStatus: async () => {
-    const headers = getAuthHeaders()
-    return request('/api/profile/status', { headers })
-  },
-
+  // ===== НАСТАВНИКИ =====
   becomeMentor: async () => {
-    const headers = getAuthHeaders()
-    return request('/api/mentor/become', {
-      method: 'POST',
-      headers
-    })
+    return await request('/api/mentor/become', { method: 'POST' })
   },
 
   addStudent: async (studentId) => {
-    const headers = getAuthHeaders()
-    return request('/api/mentor/add-student', {
+    return await request('/api/mentor/add-student', {
       method: 'POST',
-      body: JSON.stringify({ student_id: studentId }),
-      headers
+      body: JSON.stringify({ student_id: parseInt(studentId) })
     })
   },
 
   addMentor: async (mentorId) => {
-    const headers = getAuthHeaders()
-    return request('/api/student/add-mentor', {
+    return await request('/api/student/add-mentor', {
       method: 'POST',
-      body: JSON.stringify({ mentor_id: mentorId }),
-      headers
+      body: JSON.stringify({ mentor_id: parseInt(mentorId) })
     })
   },
 
   getMyStudents: async () => {
-    const headers = getAuthHeaders()
-    return request('/api/mentor/students', { headers })
+    return await request('/api/mentor/students')
   },
 
   getMyMentors: async () => {
-    const headers = getAuthHeaders()
-    return request('/api/student/mentors', { headers })
+    return await request('/api/student/mentors')
   },
 
-  // ===== Категории и задачи =====
-  getCategories: (subject) => {
-    const params = new URLSearchParams()
-    if (subject) params.append('subject', subject)
-    return request('/api/categories/?' + params.toString())
-  },
+  // ===== ДОМАШНИЕ ЗАДАНИЯ =====
 
-  getProblems: (subject, difficulty, category_id) => {
-    const params = new URLSearchParams()
-    if (difficulty) params.append('difficulty', difficulty)
-    if (category_id) params.append('category_id', category_id)
-    const path = subject === 'math'
-      ? `/api/problems/math/?${params.toString()}`
-      : `/api/problems/informatics/?${params.toString()}`
-    return request(path)
-  },
-
-  solveProblem: async (subject, problem_id, user_answer) => {
-    const payload = {
-      subject,
-      problem_id: parseInt(problem_id),
-      user_answer: String(user_answer).trim()
-    }
-    const headers = getAuthHeaders()
-    try {
-      const result = await request('/api/solve/', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-        headers
-      })
-      return result
-    } catch (error) {
-      console.error('❌ solveProblem error:', error.message)
-      throw error
-    }
-  },
-
-  // ===== Задачи пользователя =====
-  getTasks: async () => {
-    const headers = getAuthHeaders()
-    return request('/api/tasks/', { headers })
-  },
-
-  createTask: (title) => {
-    const headers = getAuthHeaders()
-    return request('/api/tasks/', {
-      method: 'POST',
-      body: JSON.stringify({ title }),
-      headers
-    })
-  },
-
-  completeTask: (task_id) => {
-    return request(`/api/tasks/${task_id}/complete`, { method: 'PATCH' })
-  },
-
-  deleteTask: (task_id) => {
-    return request(`/api/tasks/${task_id}`, { method: 'DELETE' })
-  },
-
-  saveTimedAttempt: async (subject, problem_id, user_answer, is_correct, time_spent) => {
-    const headers = getAuthHeaders()
-    if (!headers['X-EMAIL']) {
-      console.warn('⚠️ Не авторизован')
-      return null
-    }
-    try {
-      const result = await request('/api/timed-attempt/', {
-        method: 'POST',
-        body: JSON.stringify({
-          subject,
-          problem_id,
-          user_answer,
-          is_correct,
-          time_spent_seconds: time_spent
-        }),
-        headers
-      })
-      return result
-    } catch (error) {
-      console.error('❌ saveTimedAttempt error:', error)
-      return null
-    }
-  },
-
-  // ===== ВАРИАНТЫ =====
-  createVariant: async (subject, variantConfig) => {
-    const headers = getAuthHeaders()
-    return request('/api/variants/', {
+  createHomework: async (title, description, attachments = []) => {
+    return await request('/api/homework/', {
       method: 'POST',
       body: JSON.stringify({
-        subject,
-        config: variantConfig
-      }),
-      headers
+        title,
+        description,
+        attachments
+      })
     })
   },
 
-  getVariant: async (variantId) => {
-    return request(`/api/variants/${variantId}/`)
-  },
-
-  submitVariantAnswer: async (variantId, problemId, userAnswer) => {
-    const headers = getAuthHeaders()
-    return request(`/api/variants/${variantId}/submit/`, {
+  assignHomework: async (homeworkId, studentIds) => {
+    return await request(`/api/homework/${homeworkId}/assign`, {
       method: 'POST',
       body: JSON.stringify({
-        problem_id: problemId,
-        user_answer: userAnswer
-      }),
-      headers
+        student_ids: studentIds
+      })
     })
   },
 
-  completeVariant: async (variantId) => {
-    const headers = getAuthHeaders()
-    return request(`/api/variants/${variantId}/complete/`, {
+  getMentorHomeworkList: async () => {
+    return await request('/api/homework/mentor')
+  },
+
+  getMentorHomeworkDetails: async (homeworkId) => {
+    return await request(`/api/homework/mentor/${homeworkId}`)
+  },
+
+  getStudentHomeworkList: async () => {
+    return await request('/api/homework/student')
+  },
+
+  getStudentHomeworkDetails: async (studentHomeworkId) => {
+    return await request(`/api/homework/student/${studentHomeworkId}`)
+  },
+
+  submitStudentHomework: async (studentHomeworkId, studentComment, studentAttachments = []) => {
+    return await request(`/api/homework/student/${studentHomeworkId}/submit`, {
       method: 'POST',
-      headers
+      body: JSON.stringify({
+        student_comment: studentComment,
+        student_attachments: studentAttachments
+      })
     })
   },
 
-  getVariantResults: async (variantId) => {
-    return request(`/api/variants/${variantId}/results/`)
-  }
-}
-
-export const tgUtils = {
-  init() {
-    return new Promise((resolve) => {
-      if (window.Telegram?.WebApp) {
-        const tg = window.Telegram.WebApp
-        tg.ready()
-        resolve(tg)
-      } else {
-        resolve(null)
-      }
+  reviewHomework: async (studentHomeworkId, status, mentorFeedback = '') => {
+    return await request(`/api/homework/review/${studentHomeworkId}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        status,
+        mentor_feedback: mentorFeedback
+      })
     })
   },
 
-  getUser() {
-    return window.Telegram?.WebApp?.initDataUnsafe?.user
+  // ===== РАСПИСАНИЕ И УРОКИ =====
+  getMentorLessons: async () => {
+    return await request('/api/schedule/mentor')
   },
 
-  getTheme() {
-    return window.Telegram?.WebApp?.colorScheme || 'dark'
+  getStudentLessons: async () => {
+    return await request('/api/schedule/student')
+  },
+
+  createLesson: async (lessonData) => {
+    return await request('/api/schedule/lessons', {
+      method: 'POST',
+      body: JSON.stringify(lessonData)
+    })
+  },
+
+  deleteLesson: async (lessonId) => {
+    return await request(`/api/schedule/lessons/${lessonId}`, {
+      method: 'DELETE'
+    })
+  },
+
+  updateLesson: async (lessonId, updateData) => {
+    return await request(`/api/schedule/lessons/${lessonId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updateData)
+    })
+  },
+
+  // ===== ЗАГРУЗКА ФАЙЛОВ =====
+  uploadFile: async (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return await request('/api/upload/', {
+      method: 'POST',
+      body: formData
+    })
+  },
+
+  // ===== ПРОФИЛЬ =====
+  getProfile: async (email = null) => {
+    if (!email) {
+      return await api.getMe()
+    }
+    return await request(`/api/profile/email/${email}`)
+  },
+
+  updateProfile: async (name) => {
+    const result = await request('/api/profile/update', {
+      method: 'PUT',
+      body: JSON.stringify({ name })
+    })
+    if (store.profile) {
+      store.profile.name = name
+    }
+    return result
   }
 }

@@ -2,105 +2,200 @@
   <div class="page">
     <div class="register-container">
       <div class="card register-card">
-        <h1 style="margin-top: 0; text-align: center;">PlayEx 📚</h1>
-        <div class="muted" style="text-align: center; margin-bottom: 28px;">
-          Выберите способ входа
+        <div class="brand-header">
+          <div class="brand-logo">КогдаУрок ✨</div>
+          <h1>{{ activeTab === 'login' ? 'Вход в аккаунт' : activeTab === 'register' ? 'Регистрация' : 'Вход через Telegram' }}</h1>
+          <p class="muted">Платформа для занятий с наставниками и управления расписанием уроков</p>
         </div>
 
-        <!-- ИНСТРУКЦИЯ ПО РЕГИСТРАЦИИ -->
-        <div class="instruction-box">
-          <h3 style="margin: 0 0 12px 0;">📖 Как начать?</h3>
-          <ol class="instruction-list">
-            <li><strong>Новый пользователь?</strong> Откройте <a href="https://t.me/ege_playex_bot" target="_blank" class="bot-link">@ege_playex_bot</a> и нажмите «📝 Получить код»</li>
-            <li><strong>Вход на другом устройстве?</strong> Используйте тот же код что раньше</li>
-            <li>Вставьте код ниже и готово!</li>
-          </ol>
-        </div>
-
-        <!-- КНОПКИ АВТОРИЗАЦИИ -->
-        <div class="oauth-buttons">
-          <!-- TELEGRAM (если открыто в мини-приложении) -->
+        <!-- ВКЛАДКИ НАВИГАЦИИ -->
+        <div class="tabs-nav">
           <button 
-            v-if="showTelegramButton"
-            @click="loginWithTelegram" 
-            class="oauth-btn telegram-btn" 
-            :disabled="loading"
+            class="tab-btn" 
+            :class="{ active: activeTab === 'login' }" 
+            @click="switchTab('login')"
           >
-            <span class="btn-icon">✈️</span>
-            <span>{{ loading ? '⏳ Загружаем...' : 'Telegram' }}</span>
+            🔑 Вход
           </button>
+          <button 
+            class="tab-btn" 
+            :class="{ active: activeTab === 'register' }" 
+            @click="switchTab('register')"
+          >
+            ✨ Регистрация
+          </button>
+          <button 
+            class="tab-btn" 
+            :class="{ active: activeTab === 'telegram' }" 
+            @click="switchTab('telegram')"
+          >
+            🤖 Telegram
+          </button>
+        </div>
 
-          <!-- КОД ИЗ БОТА -->
-          <div class="code-section">
+        <!-- 1. ФОРМА: ВХОД ПО EMAIL -->
+        <div v-if="activeTab === 'login'" class="form-section">
+          <form @submit.prevent="handleLogin" class="form-body">
             <div class="form-group">
-              <label class="form-label">📱 Код из Telegram бота</label>
+              <label class="form-label">Email</label>
               <input 
-                v-model="registrationCode"
-                type="text"
+                v-model="loginEmail"
+                type="email"
+                required
                 class="form-input"
-                placeholder="ABC123"
-                @input="checkCode"
+                placeholder="name@example.com"
                 :disabled="loading"
-                maxlength="10"
-                autocomplete="off"
+                autocomplete="email"
               />
-              <div v-if="codeCheckMessage" class="message-small" :class="{ success: codeValid, error: !codeValid }">
-                {{ codeCheckMessage }}
-              </div>
             </div>
 
-            <!-- РЕГИСТРАЦИЯ НОВОГО ПОЛЬЗОВАТЕЛЯ -->
-            <div v-if="codeValid && !isExistingUser" class="form-group">
-              <label class="form-label">Ваше имя</label>
+            <div class="form-group">
+              <label class="form-label">Пароль</label>
               <input 
-                v-model="displayName"
+                v-model="loginPassword"
+                type="password"
+                required
+                class="form-input"
+                placeholder="Введите пароль"
+                :disabled="loading"
+                autocomplete="current-password"
+              />
+            </div>
+
+            <button 
+              type="submit" 
+              class="register-btn"
+              :disabled="loading || !loginEmail || !loginPassword"
+            >
+              {{ loading ? '⏳ Входим...' : 'Войти в аккаунт →' }}
+            </button>
+          </form>
+        </div>
+
+        <!-- 2. ФОРМА: РЕГИСТРАЦИЯ ПО EMAIL -->
+        <div v-if="activeTab === 'register'" class="form-section">
+          <form @submit.prevent="handleRegister" class="form-body">
+            <div class="form-group">
+              <label class="form-label">Ваше имя и фамилия</label>
+              <input 
+                v-model="regName"
                 type="text"
+                required
                 class="form-input"
                 placeholder="Иван Петров"
                 :disabled="loading"
-                maxlength="128"
-                autocomplete="name"
               />
             </div>
 
-            <!-- КНОПКА РЕГИСТРАЦИИ (для новых) ИЛИ ВХОДА (для существующих) -->
-            <button 
-              v-if="codeValid"
-              @click="isExistingUser ? loginWithCode() : registerWithCode()" 
-              class="register-btn"
-              :disabled="loading || (!isExistingUser && !displayName.trim())"
-            >
-              {{ loading ? '⏳ Загружаем...' : (isExistingUser ? '✓ Вход в аккаунт' : '✓ Зарегистрироваться') }}
-            </button>
+            <div class="form-group">
+              <label class="form-label">Email</label>
+              <input 
+                v-model="regEmail"
+                type="email"
+                required
+                class="form-input"
+                placeholder="name@example.com"
+                :disabled="loading"
+                autocomplete="email"
+              />
+            </div>
 
-            <!-- ИНФОРМАЦИЯ О СТАРОМ КОДЕ (если уже зарегистрирован) -->
-            <div v-if="showUserCode" class="user-code-info">
-              <p class="user-code-label">Ваш код доступа:</p>
-              <div class="code-display">
-                <code>{{ userCodeValue }}</code>
-                <button @click="copyToClipboard(userCodeValue)" class="copy-btn" title="Скопировать">📋</button>
+            <div class="form-group">
+              <label class="form-label">Пароль (минимум 4 символа)</label>
+              <input 
+                v-model="regPassword"
+                type="password"
+                required
+                minlength="4"
+                class="form-input"
+                placeholder="Придумайте пароль"
+                :disabled="loading"
+                autocomplete="new-password"
+              />
+            </div>
+
+            <!-- ВЫБОР РОЛИ -->
+            <div class="form-group">
+              <label class="form-label">Ваша роль</label>
+              <div class="role-selector">
+                <div 
+                  class="role-card" 
+                  :class="{ selected: !regIsMentor }"
+                  @click="regIsMentor = false"
+                >
+                  <div class="role-icon">👨‍🎓</div>
+                  <div class="role-title">Ученик</div>
+                  <div class="role-sub">Готовлюсь к ЕГЭ</div>
+                </div>
+
+                <div 
+                  class="role-card" 
+                  :class="{ selected: regIsMentor }"
+                  @click="regIsMentor = true"
+                >
+                  <div class="role-icon">👨‍🏫</div>
+                  <div class="role-title">Наставник</div>
+                  <div class="role-sub">Преподаю и веду уроки</div>
+                </div>
               </div>
-              <p class="user-code-note">Используйте этот код для входа на других устройствах</p>
+            </div>
+
+            <button 
+              type="submit" 
+              class="register-btn"
+              :disabled="loading || !regName || !regEmail || !regPassword"
+            >
+              {{ loading ? '⏳ Создание аккаунта...' : 'Зарегистрироваться →' }}
+            </button>
+          </form>
+        </div>
+
+        <!-- 3. ФОРМА: TELEGRAM КОД -->
+        <div v-if="activeTab === 'telegram'" class="form-section">
+          <div class="instruction-box">
+            <div class="instruction-title">📖 Как получить код в Telegram?</div>
+            <div class="instruction-text">
+              Откройте бота <a href="https://t.me/kogdaurok_bot" target="_blank" class="bot-link">@kogdaurok_bot</a> и нажмите кнопку «📝 Получить код».
             </div>
           </div>
 
-          <!-- ЯНДЕКС -->
-          <button @click="loginWithYandex" class="oauth-btn yandex-btn" :disabled="loading">
-            <span class="btn-icon">🔴</span>
-            <span>{{ loading ? '⏳ Загружаем...' : 'Яндекс' }}</span>
+          <div class="form-group">
+            <label class="form-label">Код из Telegram-бота</label>
+            <input 
+              v-model="registrationCode"
+              type="text"
+              class="form-input text-center font-code"
+              placeholder="Например: ABC123"
+              @input="checkCode"
+              :disabled="loading"
+              maxlength="10"
+              autocomplete="off"
+            />
+            <div v-if="codeCheckMessage" class="message-small" :class="{ success: codeValid, error: !codeValid }">
+              {{ codeCheckMessage }}
+            </div>
+          </div>
+
+          <button 
+            v-if="codeValid"
+            @click="loginOrRegisterWithCode" 
+            class="register-btn"
+            :disabled="loading"
+          >
+            {{ loading ? '⏳ Вход...' : '✓ Войти через Telegram' }}
           </button>
         </div>
 
-        <!-- СООБЩЕНИЕ -->
+        <!-- СООБЩЕНИЕ ОБ ОШИБКЕ/УСПЕХЕ -->
         <div v-if="message" class="message" :class="{ error: isError, success: !isError }">
           <span v-if="!isError">✓</span>
           <span v-else>⚠️</span>
           {{ message }}
         </div>
 
-        <!-- ВЕРНУТЬСЯ НА ГЛАВНУЮ -->
-        <router-link to="/" class="button-home">
-          ← Вернуться на главную
+        <!-- НАЗАД НА ГЛАВНУЮ -->
+        <router-link to="/schedule" class="button-home">
+          ← Перейти к платформе
         </router-link>
       </div>
     </div>
@@ -108,84 +203,101 @@
 </template>
 
 <script>
-import { api, tgUtils } from '../api'
+import { api } from '../api.js'
+import { store } from '../store.js'
 
 export default {
   name: 'RegisterView',
   data() {
     return {
-      showTelegramButton: false,
+      activeTab: 'login', // 'login' | 'register' | 'telegram'
+      
+      // Поля входа
+      loginEmail: '',
+      loginPassword: '',
+
+      // Поля регистрации
+      regName: '',
+      regEmail: '',
+      regPassword: '',
+      regIsMentor: false,
+
+      // Поля Telegram
       registrationCode: '',
-      displayName: '',
+      codeCheckMessage: '',
+      codeValid: false,
+      tgName: '',
+      codeCheckTimeout: null,
+
       loading: false,
       message: '',
       isError: false,
-      codeCheckMessage: '',
-      codeValid: false,
-      isExistingUser: false,
-      codeCheckTimeout: null,
-      showUserCode: false,
-      userCodeValue: '',
-      telegramId: null
-    }
-  },
-
-  async mounted() {
-    // Проверяем параметры в URL (callback от Яндекса)
-    const params = new URLSearchParams(window.location.search)
-    const authSuccess = params.get('auth_success')
-    const authError = params.get('auth_error')
-    const email = params.get('email')
-    const errorMessage = params.get('message')
-
-    if (authSuccess === 'true' && email) {
-      this.message = '✓ Авторизация успешна! Перенаправляем...'
-      this.isError = false
-      localStorage.setItem('email', email)
-
-      try {
-        const profile = await api.getProfile(email)
-        if (profile) {
-          setTimeout(() => {
-            this.$router.push('/')
-          }, 1000)
-        }
-      } catch (err) {
-        console.error('❌ Ошибка получения профиля:', err)
-        setTimeout(() => {
-          this.$router.push('/')
-        }, 1000)
-      }
-
-      window.history.replaceState({}, document.title, '/register')
-    } else if (authError === 'true') {
-      this.message = errorMessage ? decodeURIComponent(errorMessage).replace(/\+/g, ' ') : '❌ Ошибка авторизации'
-      this.isError = true
-      window.history.replaceState({}, document.title, '/register')
-    }
-
-    // Проверяем, можно ли использовать Telegram
-    const tg = await tgUtils.init()
-    if (tg) {
-      const user = tgUtils.getUser()
-      if (user) {
-        this.showTelegramButton = true
-        this.telegramId = user.id
-        console.log('✅ Telegram мини-приложение обнаружено')
-        localStorage.setItem('telegram_id', user.id)
-      }
     }
   },
 
   methods: {
+    switchTab(tab) {
+      this.activeTab = tab
+      this.message = ''
+      this.isError = false
+    },
+
+    async handleLogin() {
+      if (!this.loginEmail || !this.loginPassword) return
+
+      try {
+        this.loading = true
+        this.message = '⏳ Выполняем вход...'
+        this.isError = false
+
+        const result = await api.loginWithEmail(this.loginEmail, this.loginPassword)
+        this.message = '🎉 ' + (result.message || 'Вход выполнен успешно!')
+        
+        setTimeout(() => {
+          this.$router.push('/profile')
+        }, 800)
+      } catch (error) {
+        this.message = error.message || 'Ошибка входа. Проверьте email и пароль.'
+        this.isError = true
+      } finally {
+        this.loading = false
+      }
+    },
+
+    async handleRegister() {
+      if (!this.regName.trim() || !this.regEmail.trim() || !this.regPassword) return
+
+      try {
+        this.loading = true
+        this.message = '⏳ Создаем аккаунт...'
+        this.isError = false
+
+        const result = await api.registerWithEmail(
+          this.regEmail,
+          this.regPassword,
+          this.regName,
+          this.regIsMentor
+        )
+        this.message = '🎉 ' + (result.message || 'Регистрация успешна!')
+        
+        setTimeout(() => {
+          this.$router.push('/profile')
+        }, 800)
+      } catch (error) {
+        this.message = error.message || 'Ошибка регистрации. Возможно email уже занят.'
+        this.isError = true
+      } finally {
+        this.loading = false
+      }
+    },
+
     async checkCode() {
       clearTimeout(this.codeCheckTimeout)
-      this.isExistingUser = false
-      this.showUserCode = false
       
       if (!this.registrationCode.trim()) {
         this.codeCheckMessage = ''
         this.codeValid = false
+        this.tgName = ''
         return
       }
 
@@ -193,175 +305,40 @@ export default {
         try {
           const result = await api.verifyCode(this.registrationCode)
           if (result.valid) {
-            this.codeCheckMessage = '✓ ' + result.message
+            this.tgName = result.telegram_username || ''
+            this.codeCheckMessage = '✓ Код подтвержден' + (this.tgName ? ` (${this.tgName})` : '')
             this.codeValid = true
           } else {
-            this.codeCheckMessage = result.message
+            this.codeCheckMessage = result.message || 'Неверный код'
             this.codeValid = false
           }
         } catch (error) {
           this.codeCheckMessage = '❌ ' + (error.message || 'Ошибка проверки')
           this.codeValid = false
         }
-      }, 500)
+      }, 350)
     },
 
-    async registerWithCode() {
-      if (!this.codeValid || !this.displayName.trim()) {
-        this.message = '❌ Проверьте код и имя'
-        this.isError = true
-        return
-      }
+    async loginOrRegisterWithCode() {
+      if (!this.codeValid || !this.registrationCode.trim()) return
 
       try {
         this.loading = true
-        this.message = '⏳ Регистрируем аккаунт...'
+        this.message = '⏳ Авторизация...'
         this.isError = false
 
-        const result = await api.registerWithCode(this.registrationCode, this.displayName)
-
-        if (result.status === 'existing_user') {
-          // Пользователь уже существует
-          this.isExistingUser = true
-          this.message = '✓ ' + result.message + ' Выполняю вход...'
-          this.isError = false
-          
-          // Получаем старый код
-          try {
-            if (this.telegramId) {
-              const codeResult = await api.getUserCode(this.telegramId)
-              this.userCodeValue = codeResult.code
-              this.showUserCode = true
-            }
-          } catch (e) {
-            console.warn('⚠️ Не удалось получить старый код:', e)
-          }
-
-          setTimeout(() => {
-            this.$router.push('/')
-          }, 2000)
-        } else {
-          // Новый пользователь зарегистрирован
-          this.message = '🎉 ' + result.message + ' Добро пожаловать!'
-          this.isError = false
-          this.userCodeValue = this.registrationCode
-          this.showUserCode = true
-
-          setTimeout(() => {
-            this.$router.push('/')
-          }, 2000)
-        }
+        const result = await api.registerWithCode(this.registrationCode, '')
+        this.message = '🎉 ' + (result.message || 'Успешный вход!')
+        
+        setTimeout(() => {
+          this.$router.push('/profile')
+        }, 800)
       } catch (error) {
-        this.message = error.message || 'Ошибка регистрации'
+        this.message = error.message || 'Ошибка входа по коду'
         this.isError = true
-        console.error('❌ Регистрация ошибка:', error)
       } finally {
         this.loading = false
       }
-    },
-
-    async loginWithCode() {
-      if (!this.codeValid) {
-        this.message = '❌ Проверьте код'
-        this.isError = true
-        return
-      }
-
-      try {
-        this.loading = true
-        this.message = '⏳ Выполняем вход...'
-        this.isError = false
-
-        let telegramId = this.telegramId
-        if (!telegramId) {
-          telegramId = parseInt(localStorage.getItem('telegram_id') || '0')
-        }
-
-        if (!telegramId) {
-          throw new Error('Не удалось получить Telegram ID')
-        }
-
-        const result = await api.loginWithCode(this.registrationCode, telegramId)
-
-        this.message = '✓ ' + result.message
-        this.isError = false
-
-        setTimeout(() => {
-          this.$router.push('/')
-        }, 1000)
-      } catch (error) {
-        this.message = error.message || 'Ошибка входа'
-        this.isError = true
-        console.error('❌ Вход ошибка:', error)
-      } finally {
-        this.loading = false
-      }
-    },
-
-    async loginWithTelegram() {
-      try {
-        this.loading = true
-        this.message = ''
-        this.isError = false
-
-        const user = tgUtils.getUser()
-
-        if (!user || !user.id) {
-          this.message = '❌ Не удалось получить данные Telegram профиля'
-          this.isError = true
-          this.loading = false
-          return
-        }
-
-        this.message = '⏳ Авторизуем через Telegram...'
-
-        const result = await api.telegramAuth({
-          id: user.id,
-          first_name: user.first_name || '',
-          username: user.username || ''
-        })
-
-        console.log('✅ Telegram auth успешно:', result)
-        this.message = '✓ Вы успешно вошли! Перенаправляем...'
-        this.isError = false
-
-        setTimeout(() => {
-          this.$router.push('/')
-        }, 1000)
-      } catch (error) {
-        this.message = error.message || 'Ошибка при авторизации Telegram'
-        this.isError = true
-        console.error('❌ Telegram ошибка:', error)
-      } finally {
-        this.loading = false
-      }
-    },
-
-    async loginWithYandex() {
-      try {
-        this.loading = true
-        this.message = ''
-        this.isError = false
-
-        const authUrl = await api.getYandexAuthUrl()
-        window.location.href = authUrl
-      } catch (error) {
-        this.message = error.message || 'Ошибка при подключении Яндекса'
-        this.isError = true
-        this.loading = false
-      }
-    },
-
-    copyToClipboard(text) {
-      navigator.clipboard.writeText(text).then(() => {
-        this.message = '✓ Код скопирован в буфер обмена'
-        this.isError = false
-        setTimeout(() => {
-          this.message = ''
-        }, 2000)
-      }).catch(err => {
-        console.error('Ошибка копирования:', err)
-      })
     }
   }
 }
@@ -369,8 +346,8 @@ export default {
 
 <style scoped>
 .page {
-  padding: 20px;
-  min-height: 100vh;
+  padding: 30px 20px;
+  min-height: calc(100vh - 80px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -378,179 +355,121 @@ export default {
 
 .register-container {
   width: 100%;
-  max-width: 500px;
-}
-
-.card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 32px;
-  backdrop-filter: blur(20px);
+  max-width: 480px;
 }
 
 .register-card {
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 32px 28px;
+  backdrop-filter: blur(24px);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+}
+
+.brand-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.brand-logo {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--accent);
+  margin-bottom: 6px;
+  letter-spacing: 1px;
 }
 
 h1 {
-  background: var(--gradient-primary);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  font-size: 28px;
-  margin: 0 0 8px 0;
-}
-
-h3 {
+  font-size: 24px;
+  font-weight: 700;
   color: var(--text-primary);
-  font-size: 16px;
-  font-weight: 600;
+  margin: 0 0 6px 0;
 }
 
 .muted {
   color: var(--text-muted);
-  font-size: 14px;
-}
-
-/* ИНСТРУКЦИЯ */
-.instruction-box {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 16px;
-  margin-bottom: 20px;
-}
-
-.instruction-list {
+  font-size: 13px;
+  line-height: 1.4;
   margin: 0;
-  padding-left: 20px;
+}
+
+/* ВКЛАДКИ */
+.tabs-nav {
+  display: flex;
+  background: var(--bg-tertiary);
+  padding: 4px;
+  border-radius: 12px;
+  gap: 4px;
+  margin-bottom: 22px;
+  border: 1px solid var(--border);
+}
+
+.tab-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 10px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.tab-btn:hover {
   color: var(--text-primary);
-  font-size: 14px;
-  line-height: 1.8;
 }
 
-.instruction-list li {
-  margin-bottom: 10px;
-}
-
-.instruction-list code {
-  background: var(--color-bg-1);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: monospace;
-  font-weight: 600;
-}
-
-.bot-link {
+.tab-btn.active {
+  background: var(--bg-secondary);
   color: var(--accent);
-  text-decoration: none;
-  font-weight: 600;
-  border-bottom: 1px solid transparent;
-  transition: border-color 0.3s ease;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(0, 255, 136, 0.2);
 }
 
-.bot-link:hover {
-  border-bottom-color: var(--accent);
-}
-
-.oauth-buttons {
+/* ФОРМЫ */
+.form-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-bottom: 24px;
+  gap: 16px;
 }
 
-.oauth-btn {
-  width: 100%;
-  background: var(--bg-tertiary);
-  border: 2px solid var(--border);
-  color: var(--text-primary);
-  padding: 16px 20px;
-  border-radius: 10px;
-  font-weight: 600;
-  font-size: 16px;
-  cursor: pointer;
-  transition: all 0.3s ease;
+.form-body {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-}
-
-.oauth-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  border-color: var(--accent);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-}
-
-.oauth-btn:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.oauth-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-icon {
-  font-size: 22px;
-}
-
-.telegram-btn {
-  border-color: #0088cc;
-  background: rgba(0, 136, 204, 0.08);
-}
-
-.telegram-btn:hover:not(:disabled) {
-  background: rgba(0, 136, 204, 0.15);
-  border-color: #0088cc;
-}
-
-.yandex-btn {
-  border-color: #ffcc00;
-  background: rgba(255, 204, 0, 0.08);
-}
-
-.yandex-btn:hover:not(:disabled) {
-  background: rgba(255, 204, 0, 0.15);
-  border-color: #ffcc00;
-}
-
-.code-section {
-  padding: 16px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  margin: 12px 0;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .form-group {
-  margin-bottom: 16px;
-}
-
-.form-group:last-child {
-  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .form-label {
-  display: block;
-  margin-bottom: 8px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
-  font-size: 14px;
 }
 
 .form-input {
   width: 100%;
-  background: var(--bg-secondary);
-  border: 2px solid var(--border);
+  background: var(--bg-tertiary);
+  border: 1.5px solid var(--border);
   color: var(--text-primary);
-  padding: 12px 16px;
-  border-radius: 8px;
+  padding: 12px 14px;
+  border-radius: 10px;
   font-size: 14px;
-  font-weight: 600;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
   box-sizing: border-box;
+}
+
+.font-code {
+  font-family: monospace;
+  font-size: 18px;
+  letter-spacing: 2px;
 }
 
 .form-input:focus {
@@ -558,29 +477,48 @@ h3 {
   border-color: var(--accent);
 }
 
-.form-input:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+/* ВЫБОР РОЛИ */
+.role-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 4px;
 }
 
-.message-small {
-  padding: 6px 10px;
-  border-radius: 6px;
-  margin-top: 6px;
-  font-size: 12px;
-  font-weight: 600;
+.role-card {
+  background: var(--bg-tertiary);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.message-small.success {
-  background: rgba(0, 255, 136, 0.1);
-  color: var(--accent);
-  border: 1px solid rgba(0, 255, 136, 0.3);
+.role-card:hover {
+  border-color: var(--border-light);
 }
 
-.message-small.error {
-  background: rgba(255, 68, 68, 0.1);
-  color: #ff4444;
-  border: 1px solid rgba(255, 68, 68, 0.3);
+.role-card.selected {
+  border-color: var(--accent);
+  background: rgba(0, 255, 136, 0.08);
+}
+
+.role-icon {
+  font-size: 22px;
+  margin-bottom: 4px;
+}
+
+.role-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.role-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
 }
 
 .register-btn {
@@ -588,209 +526,94 @@ h3 {
   background: var(--gradient-primary);
   color: #000;
   border: none;
-  padding: 12px 16px;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 14px;
+  padding: 14px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 15px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
+  margin-top: 6px;
 }
 
 .register-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0, 255, 136, 0.3);
+  opacity: 0.88;
 }
 
 .register-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-/* ОТОБРАЖЕНИЕ СТАРОГО КОДА */
-.user-code-info {
-  margin-top: 16px;
-  padding: 12px;
+.instruction-box {
   background: rgba(0, 255, 136, 0.05);
-  border: 1px solid rgba(0, 255, 136, 0.3);
-  border-radius: 8px;
+  border: 1px solid rgba(0, 255, 136, 0.2);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
 }
 
-.user-code-label {
-  margin: 0 0 8px 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.code-display {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.code-display code {
-  flex: 1;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-family: 'Courier New', monospace;
-  font-size: 16px;
+.instruction-title {
   font-weight: 700;
   color: var(--accent);
-  word-break: break-all;
+  margin-bottom: 4px;
 }
 
-.copy-btn {
-  background: var(--accent);
-  border: none;
-  color: #000;
-  padding: 8px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 16px;
-  transition: all 0.3s ease;
-  flex-shrink: 0;
+.instruction-text {
+  color: var(--text-primary);
 }
 
-.copy-btn:hover {
-  transform: scale(1.1);
-  opacity: 0.9;
-}
-
-.copy-btn:active {
-  transform: scale(0.95);
-}
-
-.user-code-note {
-  margin: 0;
-  font-size: 12px;
-  color: var(--text-muted);
-  font-style: italic;
+.bot-link {
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: underline;
 }
 
 .message {
   padding: 12px 16px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  border-radius: 10px;
+  margin-top: 18px;
+  font-size: 13px;
   font-weight: 600;
-  font-size: 14px;
-  animation: slideIn 0.3s ease;
 }
 
 .message.success {
   background: rgba(0, 255, 136, 0.1);
-  border: 1px solid rgba(0, 255, 136, 0.3);
   color: var(--accent);
+  border: 1px solid rgba(0, 255, 136, 0.3);
 }
 
 .message.error {
   background: rgba(255, 68, 68, 0.1);
-  border: 1px solid rgba(255, 68, 68, 0.3);
   color: #ff4444;
+  border: 1px solid rgba(255, 68, 68, 0.3);
 }
 
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.message-small {
+  font-size: 12px;
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+.message-small.success {
+  color: var(--accent);
+}
+
+.message-small.error {
+  color: #ff4444;
 }
 
 .button-home {
   display: block;
-  width: 100%;
   text-align: center;
-  padding: 12px 20px;
-  background: transparent;
-  border: 2px solid var(--border);
-  color: var(--text-primary);
-  border-radius: 8px;
+  color: var(--text-muted);
   text-decoration: none;
+  font-size: 13px;
   font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
   margin-top: 20px;
+  transition: color 0.2s ease;
 }
 
 .button-home:hover {
-  border-color: var(--accent);
   color: var(--accent);
-  transform: translateX(-4px);
-}
-
-@media (max-width: 480px) {
-  .page {
-    padding: 12px;
-  }
-
-  .card {
-    padding: 20px;
-    border-radius: 12px;
-  }
-
-  h1 {
-    font-size: 24px;
-  }
-
-  .instruction-box {
-    padding: 12px;
-  }
-
-  .instruction-list {
-    font-size: 13px;
-    padding-left: 18px;
-  }
-
-  .oauth-btn {
-    padding: 14px 16px;
-    font-size: 14px;
-  }
-
-  .btn-icon {
-    font-size: 20px;
-  }
-
-  .code-section {
-    padding: 12px;
-  }
-
-  .form-input {
-    padding: 10px 12px;
-    font-size: 13px;
-  }
-
-  .register-btn {
-    padding: 10px 14px;
-    font-size: 13px;
-  }
-
-  .button-home {
-    padding: 10px 16px;
-    font-size: 14px;
-  }
-
-  .code-display {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .code-display code {
-    font-size: 14px;
-  }
-
-  .copy-btn {
-    width: 100%;
-  }
 }
 </style>

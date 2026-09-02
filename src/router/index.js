@@ -1,33 +1,18 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
-import ProblemsView from '../views/ProblemsView.vue'
 import ProfileView from '../views/ProfileView.vue'
-import StatsView from '../views/StatsView.vue'
 import RegisterView from '../views/RegisterView.vue'
-import TimedProblemsView from '../views/TimedProblemsView.vue'
-import CreateVariantView from '../views/CreateVariantView.vue'
-import SolveVariantView from '../views/SolveVariantView.vue'
-import HomeworkView from '../views/HomeworkView.vue' // ✅ Добавлено
+import HomeworkView from '../views/HomeworkView.vue'
+import ScheduleView from '../views/ScheduleView.vue'
 
 const routes = [
   {
     path: '/',
-    name: 'Problems',
-    component: ProblemsView
+    redirect: '/schedule'
   },
   {
-    path: '/create-variant',
-    name: 'CreateVariant',
-    component: CreateVariantView
-  },
-  {
-    path: '/variant/:variantId',
-    name: 'SolveVariant',
-    component: SolveVariantView
-  },
-  {
-    path: '/timed',
-    name: 'TimedProblems',
-    component: TimedProblemsView
+    path: '/schedule',
+    name: 'Schedule',
+    component: ScheduleView
   },
   {
     path: '/profile',
@@ -35,16 +20,10 @@ const routes = [
     component: ProfileView
   },
   {
-    path: '/stats',
-    name: 'Stats',
-    component: StatsView
-  },
-  {
     path: '/register',
     name: 'Register',
     component: RegisterView
   },
-  // ✅ Новый роут для домашних заданий
   {
     path: '/homework',
     name: 'Homework',

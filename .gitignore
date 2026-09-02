@@ -28,3 +28,9 @@ coverage
 *.sw?
 
 *.tsbuildinfo
+
+# Env & Firebase
+.env
+.env.*
+!.env.example
+.firebase

@@ -67,7 +67,16 @@
         </div>
         <div class="homework-grid">
           <div v-for="hw in mentorHomeworks" :key="hw.homework_id" class="card hw-card" @click="openMentorHomework(hw.homework_id)">
-            <h3 class="hw-title">{{ hw.title }}</h3>
+            <div class="hw-card-header">
+              <h3 class="hw-title">{{ hw.title }}</h3>
+              <button 
+                class="delete-btn-card" 
+                title="Удалить ДЗ" 
+                @click.stop="confirmDeleteHomework(hw.homework_id, hw.title)"
+              >
+                🗑️
+              </button>
+            </div>
             <p class="muted">Создано: {{ formatDate(hw.created_at) }}</p>
             <div class="stats-row">
               <div class="stat-badge"><span class="icon">👥</span> Назначено: {{ hw.students_total }}</div>
@@ -79,7 +88,12 @@
 
       <!-- Детали ДЗ для учителя -->
       <div v-if="currentTab === 'list' && selectedMentorHomework" class="card details-card animate-fade-in">
-        <button class="button ghost small mb-4" @click="selectedMentorHomework = null">← Назад к списку</button>
+        <div class="details-top-bar mb-4">
+          <button class="button ghost small" @click="selectedMentorHomework = null">← Назад к списку</button>
+          <button class="button ghost danger small" @click="confirmDeleteHomework(selectedMentorHomework.homework.homework_id, selectedMentorHomework.homework.title)">
+            🗑️ Удалить ДЗ
+          </button>
+        </div>
         
         <h2 class="task-title">{{ selectedMentorHomework.homework.title }}</h2>
         <div class="content-block">
@@ -139,8 +153,17 @@
           <div v-if="selectedMentorHomework.students.length === 0" class="muted">Задание еще не назначено.</div>
           <div v-for="sw in selectedMentorHomework.students" :key="sw.student_homework_id" class="student-work-card">
             <div class="work-header">
-              <span class="student-name">{{ sw.student_name }}</span>
-              <span :class="['status-badge', sw.status]">{{ sw.status === 'completed' ? 'Сдано' : 'В процессе' }}</span>
+              <div class="student-info">
+                <span class="student-name">{{ sw.student_name }}</span>
+                <span :class="['status-badge', sw.status]">{{ sw.status === 'completed' ? 'Сдано' : 'В процессе' }}</span>
+              </div>
+              <button 
+                class="button ghost danger small" 
+                title="Отменить назначение" 
+                @click="confirmUnassignStudent(selectedMentorHomework.homework.homework_id, sw.student_id, sw.student_name)"
+              >
+                ❌ Отменить назначение
+              </button>
             </div>
             <div v-if="sw.status === 'completed'" class="work-content">
               <p><strong>Комментарий ученика:</strong></p>
@@ -614,6 +637,48 @@ export default {
       } catch (e) {
         notify.error(e.message || 'Ошибка обновления статуса')
       }
+    },
+
+    async confirmDeleteHomework(homeworkId, title) {
+      const confirmed = await notify.confirm(
+        `Вы действительно хотите удалить домашнее задание "${title || 'Без названия'}"? Это действие нельзя отменить.`,
+        'Удаление ДЗ',
+        'Удалить',
+        'Отмена'
+      )
+      if (!confirmed) return
+
+      try {
+        await api.deleteHomework(homeworkId)
+        notify.success('Домашнее задание успешно удалено')
+        if (this.selectedMentorHomework && this.selectedMentorHomework.homework.homework_id === homeworkId) {
+          this.selectedMentorHomework = null
+        }
+        await this.loadMentorData()
+      } catch (e) {
+        notify.error(e.message || 'Ошибка удаления задания')
+      }
+    },
+
+    async confirmUnassignStudent(homeworkId, studentId, studentName) {
+      const confirmed = await notify.confirm(
+        `Отменить назначение домашнего задания для ученика "${studentName || 'Ученик'}"?`,
+        'Отмена назначения',
+        'Отменить назначение',
+        'Отмена'
+      )
+      if (!confirmed) return
+
+      try {
+        await api.unassignHomework(homeworkId, studentId)
+        notify.success(`Назначение для ученика "${studentName}" отменено`)
+        if (this.selectedMentorHomework && this.selectedMentorHomework.homework.homework_id === homeworkId) {
+          await this.openMentorHomework(homeworkId)
+        }
+        await this.loadMentorData()
+      } catch (e) {
+        notify.error(e.message || 'Ошибка отмены назначения')
+      }
     }
   }
 }
@@ -711,6 +776,47 @@ export default {
   border-color: rgba(0, 255, 136, 0.35);
   transform: translateY(-2px);
   transition: all 0.2s ease;
+}
+
+.hw-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.delete-btn-card {
+  background: transparent;
+  border: none;
+  font-size: 15px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s, transform 0.2s, background-color 0.2s;
+  padding: 2px 6px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.delete-btn-card:hover {
+  opacity: 1;
+  background: rgba(224, 85, 85, 0.15);
+  transform: scale(1.1);
+}
+
+.details-top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.student-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .hw-header {

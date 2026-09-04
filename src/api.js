@@ -260,6 +260,18 @@ export const api = {
     })
   },
 
+  deleteHomework: async (homeworkId) => {
+    return await request(`/api/homework/${homeworkId}`, {
+      method: 'DELETE'
+    })
+  },
+
+  unassignHomework: async (homeworkId, studentId) => {
+    return await request(`/api/homework/${homeworkId}/assign/${studentId}`, {
+      method: 'DELETE'
+    })
+  },
+
   // ===== РАСПИСАНИЕ И УРОКИ =====
   getMentorLessons: async () => {
     return await request('/api/schedule/mentor')

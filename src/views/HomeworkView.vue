@@ -15,7 +15,7 @@
     <template v-if="isMentor">
       
       <!-- Создание ДЗ -->
-      <div v-if="currentTab === 'create'" class="card animate-fade-in">
+      <div v-if="currentTab === 'create'" class="card form-card animate-fade-in">
         <h2>Новое задание</h2>
         <div class="form-group">
           <label>Название</label>
@@ -29,11 +29,28 @@
         <div class="form-group">
           <label>Прикрепить файлы</label>
           <input type="file" @change="handleFileUpload($event, 'create')" class="input-file" />
-          <div v-if="uploading" class="muted">Загрузка...</div>
-          <div class="attachments-list">
-            <div v-for="(url, i) in newHomework.attachments" :key="i" class="attachment-item">
-              <a :href="url" target="_blank">{{ url.split('/').pop() }}</a>
-              <button @click="newHomework.attachments.splice(i, 1)" class="btn-icon">❌</button>
+          <div v-if="uploading" class="muted mt-2">Загрузка файла...</div>
+          
+          <!-- Галерея картинок и файлов при создании -->
+          <div v-if="newHomework.attachments.length" class="attachments-grid mt-3">
+            <div v-for="(url, i) in newHomework.attachments" :key="i" class="attachment-preview-card">
+              <template v-if="isImage(url)">
+                <div class="thumb-wrap" @click="openImagePreview(url)">
+                  <img :src="url" :alt="getFileName(url)" class="thumb-img" />
+                  <span class="zoom-badge">🔍</span>
+                </div>
+                <div class="thumb-info">
+                  <span class="file-name" :title="getFileName(url)">{{ getFileName(url) }}</span>
+                  <button @click.stop="newHomework.attachments.splice(i, 1)" class="btn-icon delete-btn" title="Удалить">🗑️</button>
+                </div>
+              </template>
+              <template v-else>
+                <div class="file-icon-wrap">📄</div>
+                <div class="thumb-info">
+                  <a :href="url" target="_blank" class="file-link" :title="getFileName(url)">{{ getFileName(url) }}</a>
+                  <button @click.stop="newHomework.attachments.splice(i, 1)" class="btn-icon delete-btn" title="Удалить">🗑️</button>
+                </div>
+              </template>
             </div>
           </div>
         </div>
@@ -50,7 +67,7 @@
         </div>
         <div class="homework-grid">
           <div v-for="hw in mentorHomeworks" :key="hw.homework_id" class="card hw-card" @click="openMentorHomework(hw.homework_id)">
-            <h3>{{ hw.title }}</h3>
+            <h3 class="hw-title">{{ hw.title }}</h3>
             <p class="muted">Создано: {{ formatDate(hw.created_at) }}</p>
             <div class="stats-row">
               <div class="stat-badge"><span class="icon">👥</span> Назначено: {{ hw.students_total }}</div>
@@ -64,16 +81,41 @@
       <div v-if="currentTab === 'list' && selectedMentorHomework" class="card details-card animate-fade-in">
         <button class="button ghost small mb-4" @click="selectedMentorHomework = null">← Назад к списку</button>
         
-        <h2>{{ selectedMentorHomework.homework.title }}</h2>
+        <h2 class="task-title">{{ selectedMentorHomework.homework.title }}</h2>
         <div class="content-block">
           <h3>Описание</h3>
-          <p class="pre-line">{{ selectedMentorHomework.homework.description || 'Нет описания' }}</p>
+          <p class="pre-line text-wrap-break">{{ selectedMentorHomework.homework.description || 'Нет описания' }}</p>
         </div>
         
         <div class="content-block" v-if="selectedMentorHomework.homework.attachments?.length">
-          <h3>Вложения</h3>
-          <div class="attachments-list">
-            <a v-for="(url, i) in selectedMentorHomework.homework.attachments" :key="i" :href="url" target="_blank" class="attachment-link">📎 {{ url.split('/').pop() }}</a>
+          <h3>Материалы к заданию</h3>
+          
+          <!-- Галерея изображений -->
+          <div v-if="filterImages(selectedMentorHomework.homework.attachments).length" class="gallery-grid mt-3">
+            <div 
+              v-for="(url, i) in filterImages(selectedMentorHomework.homework.attachments)" 
+              :key="'hw-img-' + i" 
+              class="gallery-item"
+              @click="openImagePreview(url)"
+            >
+              <img :src="url" :alt="getFileName(url)" class="gallery-img" />
+              <div class="gallery-overlay">
+                <span class="overlay-text">🔍 Увеличить</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Другие файлы -->
+          <div v-if="filterFiles(selectedMentorHomework.homework.attachments).length" class="files-list mt-3">
+            <a 
+              v-for="(url, i) in filterFiles(selectedMentorHomework.homework.attachments)" 
+              :key="'hw-file-' + i" 
+              :href="url" 
+              target="_blank" 
+              class="attachment-link"
+            >
+              📎 {{ getFileName(url) }}
+            </a>
           </div>
         </div>
 
@@ -102,11 +144,38 @@
             </div>
             <div v-if="sw.status === 'completed'" class="work-content">
               <p><strong>Комментарий ученика:</strong></p>
-              <p class="pre-line">{{ sw.student_comment || 'Нет комментария' }}</p>
+              <p class="pre-line text-wrap-break mt-1">{{ sw.student_comment || 'Нет комментария' }}</p>
               
-              <div v-if="sw.student_attachments?.length" class="mt-2">
+              <div v-if="sw.student_attachments?.length" class="mt-3">
                 <p><strong>Вложения ученика:</strong></p>
-                <a v-for="(url, i) in sw.student_attachments" :key="i" :href="url" target="_blank" class="attachment-link">📎 {{ url.split('/').pop() }}</a>
+                
+                <!-- Изображения от ученика -->
+                <div v-if="filterImages(sw.student_attachments).length" class="gallery-grid mt-2">
+                  <div 
+                    v-for="(url, i) in filterImages(sw.student_attachments)" 
+                    :key="'sw-img-' + i" 
+                    class="gallery-item"
+                    @click="openImagePreview(url)"
+                  >
+                    <img :src="url" :alt="getFileName(url)" class="gallery-img" />
+                    <div class="gallery-overlay">
+                      <span class="overlay-text">🔍 Увеличить</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Не-изображения от ученика -->
+                <div v-if="filterFiles(sw.student_attachments).length" class="files-list mt-2">
+                  <a 
+                    v-for="(url, i) in filterFiles(sw.student_attachments)" 
+                    :key="'sw-file-' + i" 
+                    :href="url" 
+                    target="_blank" 
+                    class="attachment-link"
+                  >
+                    📎 {{ getFileName(url) }}
+                  </a>
+                </div>
               </div>
               
               <div class="work-actions mt-4">
@@ -128,7 +197,7 @@
         <div class="homework-grid">
           <div v-for="sw in studentHomeworks" :key="sw.student_homework_id" class="card hw-card" @click="openStudentHomework(sw.student_homework_id)">
             <div class="hw-header">
-              <h3>{{ sw.title }}</h3>
+              <h3 class="hw-title">{{ sw.title }}</h3>
               <span :class="['status-badge', sw.status]">{{ sw.status === 'completed' ? 'Сдано' : 'К выполнению' }}</span>
             </div>
             <p class="muted">Наставник: {{ sw.mentor_name }}</p>
@@ -141,18 +210,43 @@
       <div v-if="selectedStudentHomework" class="card details-card animate-fade-in">
         <button class="button ghost small mb-4" @click="selectedStudentHomework = null">← Назад к списку</button>
         
-        <h2>{{ selectedStudentHomework.title }}</h2>
+        <h2 class="task-title">{{ selectedStudentHomework.title }}</h2>
         <p class="muted">Наставник: {{ selectedStudentHomework.mentor_name }}</p>
         
         <div class="content-block mt-4">
           <h3>Описание задачи</h3>
-          <p class="pre-line task-desc">{{ selectedStudentHomework.description || 'Нет описания' }}</p>
+          <p class="pre-line task-desc text-wrap-break">{{ selectedStudentHomework.description || 'Нет описания' }}</p>
         </div>
 
         <div class="content-block" v-if="selectedStudentHomework.attachments?.length">
           <h3>Материалы от учителя</h3>
-          <div class="attachments-list">
-            <a v-for="(url, i) in selectedStudentHomework.attachments" :key="i" :href="url" target="_blank" class="attachment-link">📎 {{ url.split('/').pop() }}</a>
+          
+          <!-- Картинки от учителя -->
+          <div v-if="filterImages(selectedStudentHomework.attachments).length" class="gallery-grid mt-3">
+            <div 
+              v-for="(url, i) in filterImages(selectedStudentHomework.attachments)" 
+              :key="'shw-img-' + i" 
+              class="gallery-item"
+              @click="openImagePreview(url)"
+            >
+              <img :src="url" :alt="getFileName(url)" class="gallery-img" />
+              <div class="gallery-overlay">
+                <span class="overlay-text">🔍 Увеличить</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Другие файлы -->
+          <div v-if="filterFiles(selectedStudentHomework.attachments).length" class="files-list mt-3">
+            <a 
+              v-for="(url, i) in filterFiles(selectedStudentHomework.attachments)" 
+              :key="'shw-file-' + i" 
+              :href="url" 
+              target="_blank" 
+              class="attachment-link"
+            >
+              📎 {{ getFileName(url) }}
+            </a>
           </div>
         </div>
 
@@ -166,13 +260,30 @@
           </div>
           
           <div class="form-group">
-            <label>Прикрепить файлы решения</label>
+            <label>Прикрепить фото / файлы решения</label>
             <input type="file" @change="handleFileUpload($event, 'submit')" class="input-file" />
-            <div v-if="uploading" class="muted">Загрузка...</div>
-            <div class="attachments-list">
-              <div v-for="(url, i) in submission.attachments" :key="i" class="attachment-item">
-                <a :href="url" target="_blank">{{ url.split('/').pop() }}</a>
-                <button @click="submission.attachments.splice(i, 1)" class="btn-icon">❌</button>
+            <div v-if="uploading" class="muted mt-2">Загрузка файла...</div>
+
+            <!-- Предпросмотр прикрепленных фото/файлов ответа -->
+            <div v-if="submission.attachments.length" class="attachments-grid mt-3">
+              <div v-for="(url, i) in submission.attachments" :key="i" class="attachment-preview-card">
+                <template v-if="isImage(url)">
+                  <div class="thumb-wrap" @click="openImagePreview(url)">
+                    <img :src="url" :alt="getFileName(url)" class="thumb-img" />
+                    <span class="zoom-badge">🔍</span>
+                  </div>
+                  <div class="thumb-info">
+                    <span class="file-name" :title="getFileName(url)">{{ getFileName(url) }}</span>
+                    <button @click.stop="submission.attachments.splice(i, 1)" class="btn-icon delete-btn" title="Удалить">🗑️</button>
+                  </div>
+                </template>
+                <template v-else>
+                  <div class="file-icon-wrap">📄</div>
+                  <div class="thumb-info">
+                    <a :href="url" target="_blank" class="file-link" :title="getFileName(url)">{{ getFileName(url) }}</a>
+                    <button @click.stop="submission.attachments.splice(i, 1)" class="btn-icon delete-btn" title="Удалить">🗑️</button>
+                  </div>
+                </template>
               </div>
             </div>
           </div>
@@ -184,19 +295,59 @@
         
         <div v-else class="success-block">
           <h3>✅ Работа сдана</h3>
-          <p>Вы успешно отправили решение.</p>
+          <p class="muted">Вы успешно отправили решение на проверку.</p>
           <div class="mt-4">
             <p><strong>Ваш комментарий:</strong></p>
-            <p class="pre-line">{{ selectedStudentHomework.student_comment || 'Нет комментария' }}</p>
-            <div v-if="selectedStudentHomework.student_attachments?.length" class="mt-2">
-              <p><strong>Ваши файлы:</strong></p>
-              <a v-for="(url, i) in selectedStudentHomework.student_attachments" :key="i" :href="url" target="_blank" class="attachment-link">📎 {{ url.split('/').pop() }}</a>
+            <p class="pre-line text-wrap-break mt-1">{{ selectedStudentHomework.student_comment || 'Нет комментария' }}</p>
+            
+            <div v-if="selectedStudentHomework.student_attachments?.length" class="mt-3">
+              <p><strong>Ваши прикрепленные файлы:</strong></p>
+              
+              <!-- Фотографии сдачи -->
+              <div v-if="filterImages(selectedStudentHomework.student_attachments).length" class="gallery-grid mt-2">
+                <div 
+                  v-for="(url, i) in filterImages(selectedStudentHomework.student_attachments)" 
+                  :key="'done-img-' + i" 
+                  class="gallery-item"
+                  @click="openImagePreview(url)"
+                >
+                  <img :src="url" :alt="getFileName(url)" class="gallery-img" />
+                  <div class="gallery-overlay">
+                    <span class="overlay-text">🔍 Увеличить</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Другие файлы -->
+              <div v-if="filterFiles(selectedStudentHomework.student_attachments).length" class="files-list mt-2">
+                <a 
+                  v-for="(url, i) in filterFiles(selectedStudentHomework.student_attachments)" 
+                  :key="'done-file-' + i" 
+                  :href="url" 
+                  target="_blank" 
+                  class="attachment-link"
+                >
+                  📎 {{ getFileName(url) }}
+                </a>
+              </div>
             </div>
           </div>
         </div>
 
       </div>
     </template>
+
+    <!-- МОДАЛЬНОЕ ОКНО ПРОСМОТРА ИЗОБРАЖЕНИЯ (LIGHTBOX) -->
+    <div v-if="previewImageUrl" class="modal-backdrop" @click="closeImagePreview">
+      <div class="image-modal-content" @click.stop>
+        <button class="image-modal-close" @click="closeImagePreview" title="Закрыть">✕</button>
+        <img :src="previewImageUrl" alt="Просмотр изображения" class="lightbox-img" />
+        <div class="image-modal-footer">
+          <a :href="previewImageUrl" target="_blank" class="button small ghost" download>Скачать оригинал</a>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -212,6 +363,7 @@ export default {
       currentTab: 'list',
       loading: false,
       uploading: false,
+      previewImageUrl: null,
       
       // Mentor data
       mentorHomeworks: [],
@@ -252,6 +404,46 @@ export default {
     await this.loadData()
   },
   methods: {
+    isImage(url) {
+      if (!url || typeof url !== 'string') return false
+      const cleanUrl = url.split('?')[0].toLowerCase()
+      return cleanUrl.endsWith('.jpg') || 
+             cleanUrl.endsWith('.jpeg') || 
+             cleanUrl.endsWith('.png') || 
+             cleanUrl.endsWith('.webp') || 
+             cleanUrl.endsWith('.gif') || 
+             cleanUrl.endsWith('.bmp') ||
+             cleanUrl.endsWith('.svg')
+    },
+
+    getFileName(url) {
+      if (!url) return ''
+      try {
+        const cleanUrl = url.split('?')[0]
+        return decodeURIComponent(cleanUrl.split('/').pop() || 'файл')
+      } catch {
+        return url.split('/').pop() || 'файл'
+      }
+    },
+
+    filterImages(attachments) {
+      if (!Array.isArray(attachments)) return []
+      return attachments.filter(url => this.isImage(url))
+    },
+
+    filterFiles(attachments) {
+      if (!Array.isArray(attachments)) return []
+      return attachments.filter(url => !this.isImage(url))
+    },
+
+    openImagePreview(url) {
+      this.previewImageUrl = url
+    },
+
+    closeImagePreview() {
+      this.previewImageUrl = null
+    },
+
     getStudentDisplayName(s) {
       if (!s) return ''
       if (s.name && s.name.trim()) return s.name
@@ -284,7 +476,7 @@ export default {
         this.mentorHomeworks = hwRes.items || []
         this.myStudents = stRes.students || []
       } catch (e) {
-        notify.error(e.message || 'Ошибка загрузки данных наставника')
+        notify.error('Ошибка загрузки данных наставника: ' + e.message)
       }
     },
     
@@ -293,7 +485,7 @@ export default {
         const res = await api.getStudentHomeworkList()
         this.studentHomeworks = res.items || []
       } catch (e) {
-        notify.error(e.message || 'Ошибка загрузки заданий')
+        notify.error('Ошибка загрузки заданий: ' + e.message)
       }
     },
     
@@ -404,10 +596,14 @@ export default {
 <style scoped>
 .homework-page {
   animation: fadeIn 0.4s ease-out;
+  max-width: 1000px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .header-section {
-  margin-bottom: 30px;
+  margin-bottom: 24px;
 }
 
 .subtitle {
@@ -455,6 +651,11 @@ export default {
 .textarea {
   min-height: 120px;
   resize: vertical;
+  line-height: 1.5;
+  width: 100%;
+  box-sizing: border-box;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .input-file {
@@ -463,71 +664,47 @@ export default {
   border-radius: 8px;
   border: 1px dashed var(--border);
   width: 100%;
+  box-sizing: border-box;
   cursor: pointer;
 }
 
-.attachments-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.attachment-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: var(--bg-tertiary);
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-}
-
-.attachment-link {
-  display: inline-block;
-  padding: 8px 12px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--accent);
-  text-decoration: none;
-  transition: all 0.2s;
-}
-.attachment-link:hover {
-  border-color: var(--accent);
-  background: var(--accent-transparent);
-}
-
-.btn-icon {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 14px;
-}
-
+/* Сетка карточек ДЗ */
 .homework-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 20px;
 }
 
 .hw-card {
   cursor: pointer;
+  overflow: hidden;
+  word-break: break-word;
 }
 
 .hw-card:hover {
-  border-color: rgba(0, 255, 136, 0.3);
+  border-color: rgba(0, 255, 136, 0.35);
+  transform: translateY(-2px);
+  transition: all 0.2s ease;
 }
 
 .hw-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: 10px;
   margin-bottom: 10px;
+}
+
+.hw-title {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  font-size: 17px;
+  font-weight: 700;
 }
 
 .stats-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin-top: 15px;
 }
@@ -549,6 +726,8 @@ export default {
   border-radius: 20px;
   font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .status-badge.pending {
   background: rgba(255, 204, 0, 0.1);
@@ -559,9 +738,28 @@ export default {
   color: var(--success);
 }
 
+/* Детальная карточка */
 .details-card {
-  max-width: 800px;
+  max-width: 900px;
+  width: 100%;
   margin: 0 auto;
+  box-sizing: border-box;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.form-card {
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.task-title {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  margin-bottom: 8px;
+  font-size: 24px;
 }
 
 .content-block {
@@ -569,6 +767,22 @@ export default {
   padding: 20px;
   border-radius: 12px;
   margin: 15px 0;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.content-block h3 {
+  margin-bottom: 10px;
+  color: var(--text-primary);
+  font-size: 16px;
+}
+
+.text-wrap-break {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  line-height: 1.6;
 }
 
 .pre-line {
@@ -576,26 +790,33 @@ export default {
 }
 
 .task-desc {
-  font-size: 16px;
-  line-height: 1.6;
+  font-size: 15px;
+  color: var(--text-primary);
 }
 
 .divider {
   border: 0;
   border-top: 1px solid var(--border);
-  margin: 30px 0;
+  margin: 25px 0;
 }
 
 .assign-section {
   background: var(--bg-tertiary);
   padding: 20px;
   border-radius: 12px;
+  box-sizing: border-box;
 }
 
 .assign-controls {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   margin-top: 15px;
+  flex-wrap: wrap;
+}
+
+.assign-controls .input {
+  flex: 1;
+  min-width: 200px;
 }
 
 .student-works {
@@ -609,37 +830,278 @@ export default {
   background: var(--bg-tertiary);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 15px;
+  padding: 18px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .work-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
 }
 
 .student-name {
   font-weight: 600;
   font-size: 16px;
+  word-break: break-word;
 }
 
 .work-content {
   margin-top: 15px;
   padding-top: 15px;
   border-top: 1px solid var(--border);
+  word-break: break-word;
 }
 
 .success-block {
   background: rgba(0, 255, 136, 0.04);
-  border: 1px solid rgba(0, 255, 136, 0.15);
+  border: 1px solid rgba(0, 255, 136, 0.2);
   padding: 20px;
   border-radius: 12px;
   margin-top: 20px;
+  box-sizing: border-box;
+  word-break: break-word;
+}
+
+/* ===================================================
+   ГАЛЕРЕЯ И ПРЕДПРОСМОТР КАРТИНОК
+   =================================================== */
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.gallery-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.gallery-item:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.gallery-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.gallery-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.gallery-item:hover .gallery-overlay {
+  opacity: 1;
+}
+
+.overlay-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 4px 8px;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+/* Карточки файлов/картинок в форме */
+.attachments-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+.attachment-preview-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.thumb-wrap {
+  position: relative;
+  height: 100px;
+  background: #000;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.2s ease;
+}
+
+.thumb-wrap:hover .thumb-img {
+  transform: scale(1.05);
+}
+
+.zoom-badge {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.file-icon-wrap {
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.thumb-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  gap: 6px;
+  background: var(--bg-tertiary);
+  border-top: 1px solid var(--border);
+}
+
+.file-name {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.file-link {
+  font-size: 11px;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+.file-link:hover {
+  text-decoration: underline;
+}
+
+.delete-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  opacity: 0.75;
+  transition: opacity 0.15s;
+}
+.delete-btn:hover {
+  opacity: 1;
+}
+
+/* Список не-графических вложений */
+.files-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.attachment-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 14px;
+  transition: all 0.2s;
+  max-width: 100%;
+  word-break: break-all;
+}
+
+.attachment-link:hover {
+  border-color: var(--accent);
+  background: var(--accent-transparent);
+}
+
+/* Модальное окно просмотра фото (Lightbox) */
+.image-modal-content {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  animation: modalAppear 0.2s ease;
+}
+
+.lightbox-img {
+  max-width: 88vw;
+  max-height: 80vh;
+  object-fit: contain;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.image-modal-close {
+  position: absolute;
+  top: -40px;
+  right: -10px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 20px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.image-modal-close:hover {
+  background: var(--accent);
+  color: #000;
+}
+
+.image-modal-footer {
+  margin-top: 12px;
 }
 
 .mb-4 { margin-bottom: 16px; }
-.mt-4 { margin-top: 16px; }
+.mt-1 { margin-top: 4px; }
 .mt-2 { margin-top: 8px; }
+.mt-3 { margin-top: 12px; }
+.mt-4 { margin-top: 16px; }
 
 .empty-state {
   text-align: center;
@@ -656,5 +1118,22 @@ export default {
 }
 .animate-fade-in {
   animation: fadeIn 0.4s ease-out;
+}
+
+@media (max-width: 768px) {
+  .gallery-grid {
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 8px;
+  }
+  .content-block {
+    padding: 14px;
+  }
+  .assign-controls {
+    flex-direction: column;
+  }
+  .assign-controls .button {
+    width: 100%;
+    justify-content: center;
+  }
 }
 </style>

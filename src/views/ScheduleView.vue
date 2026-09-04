@@ -369,7 +369,7 @@
     <div v-if="selectedDayModal" class="modal-backdrop" @click.self="selectedDayModal = null">
       <div class="card modal day-lessons-modal">
         <div class="modal-header">
-          <h3>Уроки на {{ formatDayTitle(selectedDayModal.date) }} 📅</h3>
+          <h3>Уроки на {{ formatDayTitle(selectedDayModal.dateKey) }} 📅</h3>
           <button class="close-btn" @click="selectedDayModal = null">×</button>
         </div>
         <div class="modal-body">
@@ -571,50 +571,70 @@ export default {
     // Заголовок периода (Google Calendar toolbar title)
     periodTitle() {
       if (this.calView === 'month') {
-        const str = this.currentDate.toLocaleDateString('ru-RU', {
+        const { year, month } = this.getMskDateParts(this.currentDate)
+        const d = new Date(Date.UTC(year, month, 15, 12, 0, 0))
+        const str = d.toLocaleDateString('ru-RU', {
+          timeZone: 'Europe/Moscow',
           month: 'long',
           year: 'numeric'
         })
         return str.charAt(0).toUpperCase() + str.slice(1)
       } else if (this.calView === 'week') {
-        const curr = new Date(this.currentDate)
-        const dayOfWeek = (curr.getDay() + 6) % 7
-        const monday = new Date(curr.getFullYear(), curr.getMonth(), curr.getDate() - dayOfWeek)
-        const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6)
-        
-        const monStr = monday.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
-        const sunStr = sunday.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })
+        const { year, month, day } = this.getMskDateParts(this.currentDate)
+        const currentUtc = new Date(Date.UTC(year, month, day, 12, 0, 0))
+        const dayOfWeek = (currentUtc.getUTCDay() + 6) % 7
+        const mon = new Date(Date.UTC(year, month, day - dayOfWeek, 12, 0, 0))
+        const sun = new Date(Date.UTC(year, month, day - dayOfWeek + 6, 12, 0, 0))
+
+        const monStr = mon.toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow', day: 'numeric', month: 'short' })
+        const sunStr = sun.toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow', day: 'numeric', month: 'short', year: 'numeric' })
         return `${monStr} – ${sunStr}`
       }
       return 'Все запланированные занятия'
     },
 
-    // Генерация ячеек для сетки месяца (35 или 42 ячейки)
+    // Генерация ячеек для сетки месяца (35 или 42 ячейки) СТРОГО ПО МОСКВЕ
     monthCalendarCells() {
-      const year = this.currentDate.getFullYear()
-      const month = this.currentDate.getMonth()
-      
-      const firstDay = new Date(year, month, 1)
-      const startDayOfWeek = (firstDay.getDay() + 6) % 7 // Пн=0 .. Вс=6
-      const startDate = new Date(year, month, 1 - startDayOfWeek)
+      const { year, month } = this.getMskDateParts(this.currentDate)
 
-      const lastDayOfMonth = new Date(year, month + 1, 0)
-      const totalRequired = startDayOfWeek + lastDayOfMonth.getDate()
+      // Первый день отображаемого месяца в полдень UTC
+      const firstDayUtc = new Date(Date.UTC(year, month, 1, 12, 0, 0))
+      // День недели для 1 числа: Пн=0, Вт=1 ... Вс=6
+      const startDayOfWeek = (firstDayUtc.getUTCDay() + 6) % 7
+
+      // Последний день месяца
+      const lastDayUtc = new Date(Date.UTC(year, month + 1, 0, 12, 0, 0))
+      const daysInMonth = lastDayUtc.getUTCDate()
+
+      const totalRequired = startDayOfWeek + daysInMonth
       const totalCells = totalRequired > 35 ? 42 : 35
+
+      // Понедельник первой недели
+      const startDateUtc = new Date(Date.UTC(year, month, 1 - startDayOfWeek, 12, 0, 0))
 
       const cells = []
       const todayKey = this.getMskDateKey(new Date())
 
       for (let i = 0; i < totalCells; i++) {
-        const cellDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i)
-        const dateKey = this.getMskDateKey(cellDate)
-        const isCurrentMonth = cellDate.getMonth() === month
+        const d = new Date(Date.UTC(
+          startDateUtc.getUTCFullYear(),
+          startDateUtc.getUTCMonth(),
+          startDateUtc.getUTCDate() + i,
+          12, 0, 0
+        ))
+
+        const cYear = d.getUTCFullYear()
+        const cMonth = d.getUTCMonth()
+        const cDay = d.getUTCDate()
+
+        const dateKey = `${cYear}-${String(cMonth + 1).padStart(2, '0')}-${String(cDay).padStart(2, '0')}`
+        const isCurrentMonth = cMonth === month
         const dayLessons = this.lessonsByDate[dateKey] || []
 
         cells.push({
-          date: cellDate,
+          date: d,
           dateKey,
-          dayNumber: cellDate.getDate(),
+          dayNumber: cDay,
           isCurrentMonth,
           isToday: dateKey === todayKey,
           lessons: dayLessons
@@ -623,27 +643,41 @@ export default {
       return cells
     },
 
-    // Генерация колонок для сетки недели (7 дней)
+    // Генерация колонок для сетки недели (7 дней) СТРОГО ПО МОСКВЕ
     weekDays() {
-      const curr = new Date(this.currentDate)
-      const dayOfWeek = (curr.getDay() + 6) % 7
-      const monday = new Date(curr.getFullYear(), curr.getMonth(), curr.getDate() - dayOfWeek)
+      const { year, month, day } = this.getMskDateParts(this.currentDate)
+      const currentUtc = new Date(Date.UTC(year, month, day, 12, 0, 0))
+
+      // День недели: Пн=0 ... Вс=6
+      const dayOfWeek = (currentUtc.getUTCDay() + 6) % 7
+      // Понедельник текущей недели
+      const mondayUtc = new Date(Date.UTC(year, month, day - dayOfWeek, 12, 0, 0))
 
       const days = []
       const todayKey = this.getMskDateKey(new Date())
       const dayNames = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
       for (let i = 0; i < 7; i++) {
-        const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i)
-        const dateKey = this.getMskDateKey(d)
+        const d = new Date(Date.UTC(
+          mondayUtc.getUTCFullYear(),
+          mondayUtc.getUTCMonth(),
+          mondayUtc.getUTCDate() + i,
+          12, 0, 0
+        ))
+
+        const cYear = d.getUTCFullYear()
+        const cMonth = d.getUTCMonth()
+        const cDay = d.getUTCDate()
+
+        const dateKey = `${cYear}-${String(cMonth + 1).padStart(2, '0')}-${String(cDay).padStart(2, '0')}`
         const dayLessons = this.lessonsByDate[dateKey] || []
 
         days.push({
           date: d,
           dateKey,
           dayName: dayNames[i],
-          dayNumber: d.getDate(),
-          monthName: d.toLocaleDateString('ru-RU', { month: 'short' }),
+          dayNumber: cDay,
+          monthName: d.toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow', month: 'short' }),
           isToday: dateKey === todayKey,
           lessons: dayLessons
         })
@@ -676,6 +710,39 @@ export default {
     await this.loadSchedule()
   },
   methods: {
+    // Вспомогательный метод: извлечение компонентов даты строго в Europe/Moscow
+    getMskDateParts(dateObj = new Date()) {
+      try {
+        const formatter = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Europe/Moscow',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        })
+        const formatted = formatter.format(dateObj)
+        const [datePart, timePart] = formatted.split(', ')
+        const [year, month, day] = datePart.split('-').map(Number)
+        const [hour, minute, second] = (timePart || '00:00:00').split(':').map(Number)
+        return { year, month: month - 1, day, hour, minute, second }
+      } catch (e) {
+        // Fallback: Москва UTC+3
+        const utcMs = dateObj.getTime() + (dateObj.getTimezoneOffset() * 60000)
+        const mskDate = new Date(utcMs + (3 * 3600000))
+        return {
+          year: mskDate.getFullYear(),
+          month: mskDate.getMonth(),
+          day: mskDate.getDate(),
+          hour: mskDate.getHours(),
+          minute: mskDate.getMinutes(),
+          second: mskDate.getSeconds()
+        }
+      }
+    },
+
     async loadSchedule() {
       try {
         this.loading = true
@@ -700,19 +767,19 @@ export default {
       this.currentDate = new Date()
     },
     navPrev() {
-      const d = new Date(this.currentDate)
+      const { year, month, day } = this.getMskDateParts(this.currentDate)
       if (this.calView === 'month') {
-        this.currentDate = new Date(d.getFullYear(), d.getMonth() - 1, 1)
+        this.currentDate = new Date(Date.UTC(year, month - 1, 15, 12, 0, 0))
       } else if (this.calView === 'week') {
-        this.currentDate = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 7)
+        this.currentDate = new Date(Date.UTC(year, month, day - 7, 12, 0, 0))
       }
     },
     navNext() {
-      const d = new Date(this.currentDate)
+      const { year, month, day } = this.getMskDateParts(this.currentDate)
       if (this.calView === 'month') {
-        this.currentDate = new Date(d.getFullYear(), d.getMonth() + 1, 1)
+        this.currentDate = new Date(Date.UTC(year, month + 1, 15, 12, 0, 0))
       } else if (this.calView === 'week') {
-        this.currentDate = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7)
+        this.currentDate = new Date(Date.UTC(year, month, day + 7, 12, 0, 0))
       }
     },
 
@@ -738,18 +805,19 @@ export default {
     },
 
     openCreateModal(dateKey = null) {
-      let initialDate
+      let localISO
       if (dateKey) {
-        const parts = dateKey.split('-')
-        initialDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 16, 0, 0)
+        // При клике на ячейку календаря берём выбранный день и ставим 16:00
+        localISO = `${dateKey}T16:00`
       } else {
-        initialDate = new Date()
-        initialDate.setDate(initialDate.getDate() + 1)
-        initialDate.setHours(16, 0, 0, 0)
+        // Завтрашний день строго по Москве
+        const { year, month, day } = this.getMskDateParts(new Date())
+        const tomorrowUtc = new Date(Date.UTC(year, month, day + 1, 12, 0, 0))
+        const tYear = tomorrowUtc.getUTCFullYear()
+        const tMonth = String(tomorrowUtc.getUTCMonth() + 1).padStart(2, '0')
+        const tDay = String(tomorrowUtc.getUTCDate()).padStart(2, '0')
+        localISO = `${tYear}-${tMonth}-${tDay}T16:00`
       }
-
-      const pad = (n) => String(n).padStart(2, '0')
-      const localISO = `${initialDate.getFullYear()}-${pad(initialDate.getMonth() + 1)}-${pad(initialDate.getDate())}T${pad(initialDate.getHours())}:${pad(initialDate.getMinutes())}`
 
       this.newLesson = {
         student_id: this.myStudents.length > 0 ? this.myStudents[0].id : '',
@@ -766,9 +834,17 @@ export default {
     async submitCreateLesson() {
       try {
         this.submitting = true
+        // Строго фиксируем часовой пояс Москвы (+03:00) при отправке
+        let mskIsoString
+        if (this.newLesson.start_time.includes('+') || this.newLesson.start_time.endsWith('Z')) {
+          mskIsoString = new Date(this.newLesson.start_time).toISOString()
+        } else {
+          mskIsoString = new Date(`${this.newLesson.start_time}:00+03:00`).toISOString()
+        }
+
         const payload = {
           ...this.newLesson,
-          start_time: new Date(this.newLesson.start_time).toISOString(),
+          start_time: mskIsoString,
         }
         await api.createLesson(payload)
         this.showCreateModal = false
@@ -801,6 +877,7 @@ export default {
 
     // Date formatting helpers
     getMskDateKey(dateObj) {
+      if (!dateObj) return ''
       try {
         const formatter = new Intl.DateTimeFormat('en-CA', {
           timeZone: 'Europe/Moscow',
@@ -810,8 +887,8 @@ export default {
         })
         return formatter.format(dateObj)
       } catch (e) {
-        const pad = (n) => String(n).padStart(2, '0')
-        return `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}`
+        const { year, month, day } = this.getMskDateParts(dateObj)
+        return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
       }
     },
 
@@ -839,9 +916,23 @@ export default {
       return `${formatted} МСК`
     },
 
-    formatDayTitle(dateObj) {
-      if (!dateObj) return ''
-      return dateObj.toLocaleDateString('ru-RU', {
+    formatDayTitle(dateVal) {
+      if (!dateVal) return ''
+      let y, m, d
+      if (typeof dateVal === 'string' && dateVal.includes('-')) {
+        const parts = dateVal.split('-').map(Number)
+        y = parts[0]
+        m = parts[1] - 1
+        d = parts[2]
+      } else {
+        const parts = this.getMskDateParts(new Date(dateVal))
+        y = parts.year
+        m = parts.month
+        d = parts.day
+      }
+      const dt = new Date(Date.UTC(y, m, d, 12, 0, 0))
+      return dt.toLocaleDateString('ru-RU', {
+        timeZone: 'Europe/Moscow',
         weekday: 'long',
         day: 'numeric',
         month: 'long'

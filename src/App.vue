@@ -76,53 +76,48 @@ export default {
       console.log('🔄 App: инициализация пользователя')
       
       try {
-        // Сначала проверяем есть ли сохранённый email
+        const token = localStorage.getItem('token')
         const storedEmail = localStorage.getItem('email')
         
-        if (storedEmail) {
-          // Если email есть в localStorage, загружаем его профиль
-          console.log('📧 App: загружаю профиль из localStorage:', storedEmail)
-          const profile = await api.getProfile(storedEmail)
+        // 1. Проверяем наличие токена или email
+        if (token || storedEmail) {
+          console.log('🔑 App: загрузка профиля по токену/email')
+          let profile = await api.getMe()
+          if (!profile && storedEmail) {
+            profile = await api.getProfile(storedEmail)
+          }
           if (profile) {
             store.setProfile(profile)
-            console.log('✅ App: профиль загружен из localStorage')
-            
-            // Отправляем событие всем компонентам
+            console.log('✅ App: профиль успешно загружен')
             window.dispatchEvent(new Event('auth-changed'))
+            return
+          }
+        }
+
+        // 2. Проверяем Telegram WebApp (если открыто в Telegram)
+        const tg_user = window.Telegram?.WebApp?.initDataUnsafe?.user
+        if (tg_user?.id) {
+          console.log('🔔 App: Telegram пользователь обнаружен:', tg_user)
+          try {
+            const result = await api.telegramAuth({
+              id: tg_user.id,
+              first_name: tg_user.first_name || '',
+              username: tg_user.username || '',
+              is_bot: tg_user.is_bot || false
+            })
+            if (result && result.access_token) {
+              const profile = await api.getMe()
+              if (profile) {
+                store.setProfile(profile)
+                console.log('✅ App: Telegram авторизация успешна')
+                window.dispatchEvent(new Event('auth-changed'))
+              }
+            }
+          } catch (err) {
+            console.warn('⚠️ App: ошибка Telegram авторизации:', err)
           }
         } else {
-          // Проверяем Telegram WebApp (если открыто в Telegram)
-          const tg_user = window.Telegram?.WebApp?.initDataUnsafe?.user
-          if (tg_user?.id) {
-            console.log('🔔 App: Telegram пользователь обнаружен:', tg_user)
-            
-            // Пытаемся авторизовать через Telegram
-            try {
-              const result = await api.telegramAuth({
-                id: tg_user.id,
-                first_name: tg_user.first_name || '',
-                username: tg_user.username || '',
-                is_bot: tg_user.is_bot || false
-              })
-              
-              if (result && result.email) {
-                localStorage.setItem('email', result.email)
-                const profile = await api.getProfile(result.email)
-                if (profile) {
-                  store.setProfile(profile)
-                  console.log('✅ App: Telegram авторизация успешна')
-                  
-                  // Отправляем событие всем компонентам
-                  window.dispatchEvent(new Event('auth-changed'))
-                }
-              }
-            } catch (err) {
-              console.warn('⚠️ App: ошибка Telegram авторизации:', err)
-              // Продолжаем даже если ошибка
-            }
-          } else {
-            console.log('ℹ️ App: не в Telegram и нет сохранённого email')
-          }
+          console.log('ℹ️ App: пользователь не авторизован')
         }
       } catch (error) {
         console.error('❌ App: ошибка инициализации пользователя:', error)

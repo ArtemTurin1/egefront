@@ -243,6 +243,9 @@ export default {
   },
   async mounted() {
     if (!this.profile) {
+      await api.getMe()
+    }
+    if (!this.profile) {
       this.$router.push('/register')
       return
     }

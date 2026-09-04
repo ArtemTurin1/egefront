@@ -235,6 +235,20 @@ export default {
     }
   },
 
+  async mounted() {
+    if (store.profile) {
+      this.$router.replace('/profile')
+      return
+    }
+    const hasSavedAuth = !!(localStorage.getItem('token') || localStorage.getItem('email'))
+    if (hasSavedAuth) {
+      const p = await api.getMe()
+      if (p || store.profile) {
+        this.$router.replace('/profile')
+      }
+    }
+  },
+
   methods: {
     switchTab(tab) {
       this.activeTab = tab

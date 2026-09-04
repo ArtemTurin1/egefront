@@ -155,7 +155,7 @@
           <div class="instruction-box">
             <div class="instruction-title">📖 Как получить код в Telegram?</div>
             <div class="instruction-text">
-              Откройте бота <a href="https://t.me/kogdaurok_bot" target="_blank" class="bot-link">@kogdaurok_bot</a> и нажмите кнопку «📝 Получить код».
+              Откройте бота <a href="https://t.me/ege_playex_bot" target="_blank" class="bot-link">@ege_playex_bot</a> и нажмите кнопку «📝 Получить код».
             </div>
           </div>
 

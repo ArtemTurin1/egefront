@@ -46,7 +46,7 @@
         <div v-if="!profile.telegram_id" class="link-tg-box mt-4">
           <div class="link-tg-title">🤖 Привязать Telegram-бота</div>
           <div class="link-tg-desc">
-            Получите код в <a href="https://t.me/kogdaurok_bot" target="_blank" class="bot-link">@kogdaurok_bot</a> (кнопка «📝 Получить код») и введите сюда для получения уведомлений об уроках:
+            Получите код в <a href="https://t.me/ege_playex_bot" target="_blank" class="bot-link">@ege_playex_bot</a> (кнопка «📝 Получить код») и введите сюда для получения уведомлений об уроках и ДЗ:
           </div>
           <div class="link-tg-form">
             <input 
@@ -110,8 +110,8 @@
           <hr class="divider" />
           <div class="role-switch-hint text-center">
             <p class="muted mb-1">Сменить роль (Наставник / Ученик) можно через Telegram-бота:</p>
-            <a href="https://t.me/kogdaurok_bot" target="_blank" class="bot-link">
-              🤖 @kogdaurok_bot (кнопка «🔄 Сменить роль»)
+            <a href="https://t.me/ege_playex_bot" target="_blank" class="bot-link">
+              🤖 @ege_playex_bot (кнопка «🔄 Сменить роль»)
             </a>
           </div>
         </template>

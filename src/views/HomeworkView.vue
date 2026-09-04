@@ -27,8 +27,8 @@
         </div>
         
         <div class="form-group">
-          <label>Прикрепить файлы</label>
-          <input type="file" @change="handleFileUpload($event, 'create')" class="input-file" />
+          <label>Прикрепить файлы (фото, документы)</label>
+          <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.zip,.txt" @change="handleFileUpload($event, 'create')" class="input-file" />
           <div v-if="uploading" class="muted mt-2">Загрузка файла...</div>
           
           <!-- Галерея картинок и файлов при создании -->
@@ -36,7 +36,7 @@
             <div v-for="(url, i) in newHomework.attachments" :key="i" class="attachment-preview-card">
               <template v-if="isImage(url)">
                 <div class="thumb-wrap" @click="openImagePreview(url)">
-                  <img :src="url" :alt="getFileName(url)" class="thumb-img" />
+                  <img :src="getFileUrl(url)" :alt="getFileName(url)" class="thumb-img" @error="onImageError" />
                   <span class="zoom-badge">🔍</span>
                 </div>
                 <div class="thumb-info">
@@ -47,7 +47,7 @@
               <template v-else>
                 <div class="file-icon-wrap">📄</div>
                 <div class="thumb-info">
-                  <a :href="url" target="_blank" class="file-link" :title="getFileName(url)">{{ getFileName(url) }}</a>
+                  <a :href="getFileUrl(url)" target="_blank" class="file-link" :title="getFileName(url)">{{ getFileName(url) }}</a>
                   <button @click.stop="newHomework.attachments.splice(i, 1)" class="btn-icon delete-btn" title="Удалить">🗑️</button>
                 </div>
               </template>
@@ -98,7 +98,7 @@
               class="gallery-item"
               @click="openImagePreview(url)"
             >
-              <img :src="url" :alt="getFileName(url)" class="gallery-img" />
+              <img :src="getFileUrl(url)" :alt="getFileName(url)" class="gallery-img" @error="onImageError" />
               <div class="gallery-overlay">
                 <span class="overlay-text">🔍 Увеличить</span>
               </div>
@@ -110,7 +110,7 @@
             <a 
               v-for="(url, i) in filterFiles(selectedMentorHomework.homework.attachments)" 
               :key="'hw-file-' + i" 
-              :href="url" 
+              :href="getFileUrl(url)" 
               target="_blank" 
               class="attachment-link"
             >
@@ -157,7 +157,7 @@
                     class="gallery-item"
                     @click="openImagePreview(url)"
                   >
-                    <img :src="url" :alt="getFileName(url)" class="gallery-img" />
+                    <img :src="getFileUrl(url)" :alt="getFileName(url)" class="gallery-img" @error="onImageError" />
                     <div class="gallery-overlay">
                       <span class="overlay-text">🔍 Увеличить</span>
                     </div>
@@ -169,7 +169,7 @@
                   <a 
                     v-for="(url, i) in filterFiles(sw.student_attachments)" 
                     :key="'sw-file-' + i" 
-                    :href="url" 
+                    :href="getFileUrl(url)" 
                     target="_blank" 
                     class="attachment-link"
                   >
@@ -229,7 +229,7 @@
               class="gallery-item"
               @click="openImagePreview(url)"
             >
-              <img :src="url" :alt="getFileName(url)" class="gallery-img" />
+              <img :src="getFileUrl(url)" :alt="getFileName(url)" class="gallery-img" @error="onImageError" />
               <div class="gallery-overlay">
                 <span class="overlay-text">🔍 Увеличить</span>
               </div>
@@ -241,7 +241,7 @@
             <a 
               v-for="(url, i) in filterFiles(selectedStudentHomework.attachments)" 
               :key="'shw-file-' + i" 
-              :href="url" 
+              :href="getFileUrl(url)" 
               target="_blank" 
               class="attachment-link"
             >
@@ -261,7 +261,7 @@
           
           <div class="form-group">
             <label>Прикрепить фото / файлы решения</label>
-            <input type="file" @change="handleFileUpload($event, 'submit')" class="input-file" />
+            <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.zip,.txt" @change="handleFileUpload($event, 'submit')" class="input-file" />
             <div v-if="uploading" class="muted mt-2">Загрузка файла...</div>
 
             <!-- Предпросмотр прикрепленных фото/файлов ответа -->
@@ -269,7 +269,7 @@
               <div v-for="(url, i) in submission.attachments" :key="i" class="attachment-preview-card">
                 <template v-if="isImage(url)">
                   <div class="thumb-wrap" @click="openImagePreview(url)">
-                    <img :src="url" :alt="getFileName(url)" class="thumb-img" />
+                    <img :src="getFileUrl(url)" :alt="getFileName(url)" class="thumb-img" @error="onImageError" />
                     <span class="zoom-badge">🔍</span>
                   </div>
                   <div class="thumb-info">
@@ -280,7 +280,7 @@
                 <template v-else>
                   <div class="file-icon-wrap">📄</div>
                   <div class="thumb-info">
-                    <a :href="url" target="_blank" class="file-link" :title="getFileName(url)">{{ getFileName(url) }}</a>
+                    <a :href="getFileUrl(url)" target="_blank" class="file-link" :title="getFileName(url)">{{ getFileName(url) }}</a>
                     <button @click.stop="submission.attachments.splice(i, 1)" class="btn-icon delete-btn" title="Удалить">🗑️</button>
                   </div>
                 </template>
@@ -311,7 +311,7 @@
                   class="gallery-item"
                   @click="openImagePreview(url)"
                 >
-                  <img :src="url" :alt="getFileName(url)" class="gallery-img" />
+                  <img :src="getFileUrl(url)" :alt="getFileName(url)" class="gallery-img" @error="onImageError" />
                   <div class="gallery-overlay">
                     <span class="overlay-text">🔍 Увеличить</span>
                   </div>
@@ -323,7 +323,7 @@
                 <a 
                   v-for="(url, i) in filterFiles(selectedStudentHomework.student_attachments)" 
                   :key="'done-file-' + i" 
-                  :href="url" 
+                  :href="getFileUrl(url)" 
                   target="_blank" 
                   class="attachment-link"
                 >
@@ -352,7 +352,7 @@
 </template>
 
 <script>
-import { api } from '../api.js'
+import { api, getFileUrl } from '../api.js'
 import { store } from '../store.js'
 import { notify } from '../notify.js'
 
@@ -404,6 +404,17 @@ export default {
     await this.loadData()
   },
   methods: {
+    getFileUrl(url) {
+      return getFileUrl(url)
+    },
+
+    onImageError(e) {
+      e.target.style.display = 'none'
+      if (e.target.parentElement) {
+        e.target.parentElement.classList.add('img-load-error')
+      }
+    },
+
     isImage(url) {
       if (!url || typeof url !== 'string') return false
       const cleanUrl = url.split('?')[0].toLowerCase()
@@ -437,7 +448,7 @@ export default {
     },
 
     openImagePreview(url) {
-      this.previewImageUrl = url
+      this.previewImageUrl = getFileUrl(url)
     },
 
     closeImagePreview() {
@@ -446,12 +457,9 @@ export default {
 
     getStudentDisplayName(s) {
       if (!s) return ''
-      if (s.name && s.name.trim()) return s.name
-      if (s.telegram_username) return `@${s.telegram_username}`
-      if (s.email && !s.email.includes('@kogdaurok.local') && !s.email.startsWith('telegram_')) {
-        return s.email
-      }
-      return `Ученик #${s.id}`
+      const name = s.name && s.name.trim() ? s.name : (s.telegram_username ? `@${s.telegram_username}` : `Ученик #${s.id}`)
+      const tgStatus = s.has_telegram || s.telegram_username ? '💬 TG' : '⚠️ нет TG'
+      return `${name} (${tgStatus})`
     },
 
     formatDate(dateStr) {
@@ -490,20 +498,28 @@ export default {
     },
     
     async handleFileUpload(event, target) {
-      const file = event.target.files[0]
-      if (!file) return
+      const files = Array.from(event.target.files || [])
+      if (!files.length) return
       
       this.uploading = true
+      let successCount = 0
       try {
-        const res = await api.uploadFile(file)
-        if (target === 'create') {
-          this.newHomework.attachments.push(res.url)
-        } else {
-          this.submission.attachments.push(res.url)
+        for (const file of files) {
+          try {
+            const res = await api.uploadFile(file)
+            if (target === 'create') {
+              this.newHomework.attachments.push(res.url)
+            } else {
+              this.submission.attachments.push(res.url)
+            }
+            successCount++
+          } catch (err) {
+            notify.error(`Ошибка загрузки ${file.name}: ${err.message}`)
+          }
         }
-        notify.success('Файл успешно прикреплен')
-      } catch (e) {
-        notify.error('Ошибка загрузки файла: ' + e.message)
+        if (successCount > 0) {
+          notify.success(`Загружено файлов: ${successCount}`)
+        }
       } finally {
         this.uploading = false
         event.target.value = ''
@@ -541,9 +557,15 @@ export default {
     async assignHomework() {
       if (!this.selectedStudentToAssign) return
       try {
-        await api.assignHomework(this.selectedMentorHomework.homework.homework_id, [this.selectedStudentToAssign])
+        const res = await api.assignHomework(this.selectedMentorHomework.homework.homework_id, [this.selectedStudentToAssign])
         this.selectedStudentToAssign = ''
-        notify.success('Задание успешно назначено ученику!')
+        if (res.notified_count > 0) {
+          notify.success(`Задание назначено! Ученик получил уведомление в Telegram 📲`)
+        } else if (res.no_tg_count > 0) {
+          notify.info(`Задание назначено. Ученик пока не привязал Telegram, уведомление не отправлено.`)
+        } else {
+          notify.success('Задание успешно назначено ученику!')
+        }
         await this.openMentorHomework(this.selectedMentorHomework.homework.homework_id)
         await this.loadMentorData() // update stats
       } catch (e) {
@@ -564,12 +586,16 @@ export default {
     async submitHomework() {
       this.loading = true
       try {
-        await api.submitStudentHomework(
+        const res = await api.submitStudentHomework(
           this.selectedStudentHomework.student_homework_id,
           this.submission.comment,
           this.submission.attachments
         )
-        notify.success('Работа успешно сдана наставнику!')
+        if (res.mentor_notified) {
+          notify.success('Работа сдана! Преподаватель получил уведомление в Telegram 📲')
+        } else {
+          notify.success('Работа успешно сдана наставнику!')
+        }
         await this.openStudentHomework(this.selectedStudentHomework.student_homework_id)
         await this.loadStudentData()
       } catch (e) {
@@ -942,9 +968,21 @@ export default {
 .thumb-wrap {
   position: relative;
   height: 100px;
-  background: #000;
+  background: var(--bg-tertiary);
   cursor: pointer;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.thumb-wrap.img-load-error::after,
+.gallery-item.img-load-error::after {
+  content: '🖼️ Ошибка фото';
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 4px;
 }
 
 .thumb-img {

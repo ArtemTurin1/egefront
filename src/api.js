@@ -2,6 +2,16 @@ import { store } from './store.js'
 
 export const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
 
+export function getFileUrl(url) {
+  if (!url) return ''
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
+    return url
+  }
+  const base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE
+  const path = url.startsWith('/') ? url : '/' + url
+  return `${base}${path}`
+}
+
 async function request(path, opts = {}) {
   try {
     const authHeaders = getAuthHeaders()

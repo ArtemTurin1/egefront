@@ -5,56 +5,64 @@
       <div class="header-content">
         <div class="header-titles">
           <h1>Расписание уроков 📅</h1>
-          <p class="subtitle">
-            {{ isMentor ? 'Управление занятиями учеников и онлайн-встречами (время по МСК)' : 'Ваши запланированные занятия с преподавателями (время по МСК)' }}
-          </p>
+          <div class="subtitle-wrap">
+            <span class="subtitle-text">
+              {{ isMentor ? 'Управление занятиями учеников и онлайн-встречами (время по МСК)' : 'Ваши запланированные занятия с преподавателями (время по МСК)' }}
+            </span>
+            <span v-if="hasTelegram" class="tg-inline-badge">
+              <span class="tg-dot"></span>
+              🔔 Telegram-уведомления активны
+            </span>
+          </div>
         </div>
-        <button v-if="isMentor" class="button add-lesson-btn" @click="openCreateModal">
+        <button v-if="isMentor" class="button add-lesson-btn" @click="openCreateModal()">
           <span>➕</span> Запланировать урок
         </button>
       </div>
-
-      <!-- ИНФО-БАННЕР О TELEGRAM УВЕДОМЛЕНИЯХ -->
-      <div class="tg-status-banner" :class="{ linked: hasTelegram }">
-        <div class="tg-status-icon">{{ hasTelegram ? '🔔' : '⚠️' }}</div>
-        <div class="tg-status-text">
-          <strong v-if="hasTelegram">Telegram-уведомления активны:</strong>
-          <strong v-else>Telegram не привязан:</strong>
-          <span>
-            {{ hasTelegram 
-                ? `Бот напомнит об уроке за 1 час и за 15 минут до начала (по МСК).` 
-                : `Привяжите Telegram в Профиле, чтобы получать напоминания об уроках в боте!` }}
-          </span>
-        </div>
-        <router-link v-if="!hasTelegram" to="/profile" class="tg-link-btn">
-          Привязать Telegram →
-        </router-link>
-      </div>
     </div>
 
-    <!-- ТАБЫ ФИЛЬТРА (ПРЕДСТОЯЩИЕ / ВСЕ / ПРОШЕДШИЕ) -->
-    <div class="filter-tabs">
-      <button 
-        class="filter-tab" 
-        :class="{ active: filterTab === 'upcoming' }"
-        @click="filterTab = 'upcoming'"
-      >
-        ⏳ Предстоящие ({{ upcomingLessons.length }})
-      </button>
-      <button 
-        class="filter-tab" 
-        :class="{ active: filterTab === 'past' }"
-        @click="filterTab = 'past'"
-      >
-        ✅ Прошедшие ({{ pastLessons.length }})
-      </button>
-      <button 
-        class="filter-tab" 
-        :class="{ active: filterTab === 'all' }"
-        @click="filterTab = 'all'"
-      >
-        📋 Все ({{ lessons.length }})
-      </button>
+    <!-- ПАНЕЛЬ УПРАВЛЕНИЯ КАЛЕНДАРЕМ (GOOGLE CALENDAR STYLE TOOLBAR) -->
+    <div class="cal-toolbar card">
+      <div class="cal-toolbar-left">
+        <button class="button small ghost cal-today-btn" @click="goToToday">
+          Сегодня
+        </button>
+        <div class="cal-nav-group">
+          <button class="cal-nav-btn" @click="navPrev" title="Назад">
+            ◀
+          </button>
+          <button class="cal-nav-btn" @click="navNext" title="Вперёд">
+            ▶
+          </button>
+        </div>
+        <h2 class="cal-period-title">{{ periodTitle }}</h2>
+      </div>
+
+      <div class="cal-toolbar-right">
+        <div class="view-mode-tabs">
+          <button 
+            class="view-mode-tab" 
+            :class="{ active: calView === 'month' }" 
+            @click="calView = 'month'"
+          >
+            📅 Месяц
+          </button>
+          <button 
+            class="view-mode-tab" 
+            :class="{ active: calView === 'week' }" 
+            @click="calView = 'week'"
+          >
+            🗓️ Неделя
+          </button>
+          <button 
+            class="view-mode-tab" 
+            :class="{ active: calView === 'list' }" 
+            @click="calView = 'list'"
+          >
+            📋 Список ({{ lessons.length }})
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- ЗАГРУЗКА -->
@@ -63,82 +71,331 @@
       <p class="muted mt-2">Загружаем расписание уроков...</p>
     </div>
 
-    <!-- ПУСТОЙ СПИСОК -->
-    <div v-else-if="filteredLessons.length === 0" class="card empty-card">
-      <div class="empty-icon">🗓️</div>
-      <h3>{{ filterTab === 'upcoming' ? 'Нет предстоящих уроков' : 'Уроки не найдены' }}</h3>
-      <p class="muted">
-        {{ isMentor 
-            ? 'Нажмите кнопку «Запланировать урок», чтобы назначить онлайн-занятие ученику.' 
-            : 'Ваш наставник пока не назначил вам занятий на этот период.' }}
-      </p>
-      <button v-if="isMentor && filterTab === 'upcoming'" class="button mt-4" @click="openCreateModal">
-        ➕ Запланировать первый урок
-      </button>
+    <!-- РЕЖИМ 1: СЕТКА МЕСЯЦА (GOOGLE CALENDAR MONTH VIEW) -->
+    <div v-else-if="calView === 'month'" class="month-view-container card">
+      <!-- ДНИ НЕДЕЛИ ШАПКА -->
+      <div class="month-weekdays-row">
+        <div v-for="wDay in weekDayNames" :key="wDay" class="weekday-header-cell">
+          {{ wDay }}
+        </div>
+      </div>
+
+      <!-- СЕТКА ЯЧЕЕК МЕСЯЦА -->
+      <div class="month-grid">
+        <div 
+          v-for="cell in monthCalendarCells" 
+          :key="cell.dateKey" 
+          class="month-day-cell"
+          :class="{
+            'other-month': !cell.isCurrentMonth,
+            'is-today': cell.isToday,
+            'has-lessons': cell.lessons.length > 0
+          }"
+          @click="onDayClick(cell)"
+        >
+          <div class="day-cell-top">
+            <span class="day-number-badge" :class="{ 'today-circle': cell.isToday }">
+              {{ cell.dayNumber }}
+            </span>
+            <button 
+              v-if="isMentor" 
+              class="day-quick-add" 
+              @click.stop="openCreateModal(cell.dateKey)" 
+              title="Запланировать урок на этот день"
+            >
+              +
+            </button>
+          </div>
+
+          <div class="day-events-container">
+            <div 
+              v-for="lesson in cell.lessons.slice(0, 3)" 
+              :key="lesson.id" 
+              class="cal-event-chip"
+              :class="[getSubjectClass(lesson.subject), { 'is-past': isPast(lesson.start_time) }]"
+              @click.stop="openLessonDetails(lesson)"
+              :title="lesson.title + ' (' + formatTime(lesson.start_time) + ')'"
+            >
+              <span class="chip-time">{{ formatTime(lesson.start_time) }}</span>
+              <span class="chip-subject-dot"></span>
+              <span class="chip-text">{{ lesson.title }}</span>
+            </div>
+
+            <div 
+              v-if="cell.lessons.length > 3" 
+              class="cal-more-chip"
+              @click.stop="openDayLessonsModal(cell)"
+            >
+              + ещё {{ cell.lessons.length - 3 }}...
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- СПИСОК КАРТОЧЕК УРОКОВ -->
-    <div v-else class="lessons-grid">
-      <div 
-        v-for="lesson in filteredLessons" 
-        :key="lesson.id" 
-        class="card lesson-card"
-        :class="{ 'is-past': isPast(lesson.start_time) }"
-      >
-        <div class="lesson-header">
-          <span class="subject-badge" :class="getSubjectClass(lesson.subject)">
-            {{ lesson.subject }}
-          </span>
-          <span class="duration-badge">⏱️ {{ lesson.duration_minutes }} мин</span>
+    <!-- РЕЖИМ 2: СЕТКА НЕДЕЛИ (WEEK VIEW) -->
+    <div v-else-if="calView === 'week'" class="week-view-container card">
+      <div class="week-columns-grid">
+        <div 
+          v-for="day in weekDays" 
+          :key="day.dateKey" 
+          class="week-day-col"
+          :class="{ 'is-today': day.isToday }"
+        >
+          <div class="week-col-header">
+            <span class="week-col-name">{{ day.dayName }}</span>
+            <span class="week-col-date" :class="{ 'today-circle': day.isToday }">
+              {{ day.dayNumber }} {{ day.monthName }}
+            </span>
+            <button 
+              v-if="isMentor" 
+              class="col-quick-add" 
+              @click.stop="openCreateModal(day.dateKey)" 
+              title="Добавить урок на этот день"
+            >
+              +
+            </button>
+          </div>
+
+          <div class="week-col-content">
+            <div v-if="day.lessons.length === 0" class="week-col-empty">
+              <span class="muted text-small">Нет уроков</span>
+            </div>
+            <div 
+              v-for="lesson in day.lessons" 
+              :key="lesson.id" 
+              class="week-card"
+              :class="[getSubjectClass(lesson.subject), { 'is-past': isPast(lesson.start_time) }]"
+              @click="openLessonDetails(lesson)"
+            >
+              <div class="week-card-top">
+                <span class="week-time-pill">⏰ {{ formatTime(lesson.start_time) }}</span>
+                <span class="week-dur">{{ lesson.duration_minutes }}м</span>
+              </div>
+              <div class="week-card-title">{{ lesson.title }}</div>
+              <div class="week-card-person">
+                {{ isMentor ? '👨‍🎓 ' + lesson.student_name : '👨‍🏫 ' + lesson.mentor_name }}
+              </div>
+              <div v-if="lesson.lesson_link" class="week-card-actions" @click.stop>
+                <a :href="formatUrl(lesson.lesson_link)" target="_blank" class="week-join-btn">
+                  🚀 Войти
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- РЕЖИМ 3: СПИСОК (LIST VIEW) -->
+    <div v-else-if="calView === 'list'" class="list-view-container">
+      <!-- ТАБЫ ФИЛЬТРА (ПРЕДСТОЯЩИЕ / ВСЕ / ПРОШЕДШИЕ) -->
+      <div class="filter-tabs">
+        <button 
+          class="filter-tab" 
+          :class="{ active: filterTab === 'upcoming' }"
+          @click="filterTab = 'upcoming'"
+        >
+          ⏳ Предстоящие ({{ upcomingLessons.length }})
+        </button>
+        <button 
+          class="filter-tab" 
+          :class="{ active: filterTab === 'past' }"
+          @click="filterTab = 'past'"
+        >
+          ✅ Прошедшие ({{ pastLessons.length }})
+        </button>
+        <button 
+          class="filter-tab" 
+          :class="{ active: filterTab === 'all' }"
+          @click="filterTab = 'all'"
+        >
+          📋 Все ({{ lessons.length }})
+        </button>
+      </div>
+
+      <!-- ПУСТОЙ СПИСОК -->
+      <div v-if="filteredLessons.length === 0" class="card empty-card">
+        <div class="empty-icon">🗓️</div>
+        <h3>{{ filterTab === 'upcoming' ? 'Нет предстоящих уроков' : 'Уроки не найдены' }}</h3>
+        <p class="muted">
+          {{ isMentor 
+              ? 'Нажмите кнопку «Запланировать урок», чтобы назначить онлайн-занятие ученику.' 
+              : 'Ваш наставник пока не назначил вам занятий на этот период.' }}
+        </p>
+        <button v-if="isMentor && filterTab === 'upcoming'" class="button mt-4" @click="openCreateModal()">
+          ➕ Запланировать первый урок
+        </button>
+      </div>
+
+      <!-- СПИСОК КАРТОЧЕК УРОКОВ -->
+      <div v-else class="lessons-grid">
+        <div 
+          v-for="lesson in filteredLessons" 
+          :key="lesson.id" 
+          class="card lesson-card"
+          :class="{ 'is-past': isPast(lesson.start_time) }"
+        >
+          <div class="lesson-header">
+            <span class="subject-badge" :class="getSubjectClass(lesson.subject)">
+              {{ lesson.subject }}
+            </span>
+            <span class="duration-badge">⏱️ {{ lesson.duration_minutes }} мин</span>
+          </div>
+
+          <h3 class="lesson-title">{{ lesson.title }}</h3>
+
+          <div class="lesson-details">
+            <div class="detail-row">
+              <span class="detail-icon">⏰</span>
+              <div>
+                <strong>{{ formatDate(lesson.start_time) }}</strong>
+                <div class="time-relative" :class="{ soon: isSoon(lesson.start_time) }">
+                  {{ formatRelativeTime(lesson.start_time) }}
+                </div>
+              </div>
+            </div>
+
+            <div class="detail-row">
+              <span class="detail-icon">{{ isMentor ? '👨‍🎓' : '👨‍🏫' }}</span>
+              <div>
+                <span class="muted">{{ isMentor ? 'Ученик:' : 'Преподаватель:' }}</span>
+                <strong>{{ isMentor ? lesson.student_name : lesson.mentor_name }}</strong>
+              </div>
+            </div>
+
+            <div v-if="lesson.notes" class="detail-row notes-row">
+              <span class="detail-icon">📝</span>
+              <span class="notes-text">{{ lesson.notes }}</span>
+            </div>
+          </div>
+
+          <!-- КНОПКИ ДЕЙСТВИЙ -->
+          <div class="lesson-actions">
+            <a 
+              v-if="lesson.lesson_link" 
+              :href="formatUrl(lesson.lesson_link)" 
+              target="_blank" 
+              class="button link-btn"
+            >
+              🚀 Войти на урок
+            </a>
+            <span v-else class="no-link-badge">Ссылка не указана</span>
+
+            <button 
+              v-if="isMentor" 
+              class="button ghost delete-btn" 
+              @click="deleteLesson(lesson.id)"
+              title="Отменить урок"
+            >
+              🗑️
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- МОДАЛЬНОЕ ОКНО ДЕТАЛЕЙ УРОКА ПРИ КЛИКЕ В КАЛЕНДАРЕ -->
+    <div v-if="selectedLessonDetail" class="modal-backdrop" @click.self="selectedLessonDetail = null">
+      <div class="card modal lesson-detail-modal">
+        <div class="modal-header">
+          <div class="detail-badges">
+            <span class="subject-badge" :class="getSubjectClass(selectedLessonDetail.subject)">
+              {{ selectedLessonDetail.subject }}
+            </span>
+            <span class="duration-badge">⏱️ {{ selectedLessonDetail.duration_minutes }} минут</span>
+          </div>
+          <button class="close-btn" @click="selectedLessonDetail = null">×</button>
         </div>
 
-        <h3 class="lesson-title">{{ lesson.title }}</h3>
+        <div class="modal-body">
+          <h2 class="detail-modal-title">{{ selectedLessonDetail.title }}</h2>
 
-        <div class="lesson-details">
-          <div class="detail-row">
-            <span class="detail-icon">⏰</span>
-            <div>
-              <strong>{{ formatDate(lesson.start_time) }}</strong>
-              <div class="time-relative" :class="{ soon: isSoon(lesson.start_time) }">
-                {{ formatRelativeTime(lesson.start_time) }}
+          <div class="lesson-detail-box">
+            <div class="detail-row">
+              <span class="detail-icon">⏰</span>
+              <div>
+                <div class="detail-label">Дата и время начала (МСК)</div>
+                <strong>{{ formatDate(selectedLessonDetail.start_time) }}</strong>
+                <div class="time-relative" :class="{ soon: isSoon(selectedLessonDetail.start_time) }">
+                  {{ formatRelativeTime(selectedLessonDetail.start_time) }}
+                </div>
+              </div>
+            </div>
+
+            <div class="detail-row">
+              <span class="detail-icon">{{ isMentor ? '👨‍🎓' : '👨‍🏫' }}</span>
+              <div>
+                <div class="detail-label">{{ isMentor ? 'Ученик' : 'Преподаватель' }}</div>
+                <strong>{{ isMentor ? selectedLessonDetail.student_name : selectedLessonDetail.mentor_name }}</strong>
+              </div>
+            </div>
+
+            <div v-if="selectedLessonDetail.notes" class="detail-row notes-row">
+              <span class="detail-icon">📝</span>
+              <div>
+                <div class="detail-label">Заметки к уроку</div>
+                <div class="notes-text">{{ selectedLessonDetail.notes }}</div>
               </div>
             </div>
           </div>
 
-          <div class="detail-row">
-            <span class="detail-icon">{{ isMentor ? '👨‍🎓' : '👨‍🏫' }}</span>
-            <div>
-              <span class="muted">{{ isMentor ? 'Ученик:' : 'Преподаватель:' }}</span>
-              <strong>{{ isMentor ? lesson.student_name : lesson.mentor_name }}</strong>
+          <div class="modal-actions-row">
+            <a 
+              v-if="selectedLessonDetail.lesson_link" 
+              :href="formatUrl(selectedLessonDetail.lesson_link)" 
+              target="_blank" 
+              class="button full-width link-btn"
+            >
+              🚀 Войти на урок
+            </a>
+            <div v-else class="no-link-box">
+              Ссылка на звонок не указана
             </div>
-          </div>
 
-          <div v-if="lesson.notes" class="detail-row notes-row">
-            <span class="detail-icon">📝</span>
-            <span class="notes-text">{{ lesson.notes }}</span>
+            <button 
+              v-if="isMentor" 
+              class="button ghost delete-action-btn" 
+              @click="deleteFromDetailModal(selectedLessonDetail.id)"
+            >
+              🗑️ Отменить этот урок
+            </button>
           </div>
         </div>
+      </div>
+    </div>
 
-        <!-- КНОПКИ ДЕЙСТВИЙ -->
-        <div class="lesson-actions">
-          <a 
-            v-if="lesson.lesson_link" 
-            :href="formatUrl(lesson.lesson_link)" 
-            target="_blank" 
-            class="button link-btn"
-          >
-            🚀 Войти на урок
-          </a>
-          <span v-else class="no-link-badge">Ссылка не указана</span>
-
-          <button 
-            v-if="isMentor" 
-            class="button ghost delete-btn" 
-            @click="deleteLesson(lesson.id)"
-            title="Отменить урок"
-          >
-            🗑️
-          </button>
+    <!-- МОДАЛЬНОЕ ОКНО ВСЕХ УРОКОВ ДНЯ (ЕСЛИ В ДНЕ МНОГО УРОКОВ) -->
+    <div v-if="selectedDayModal" class="modal-backdrop" @click.self="selectedDayModal = null">
+      <div class="card modal day-lessons-modal">
+        <div class="modal-header">
+          <h3>Уроки на {{ formatDayTitle(selectedDayModal.date) }} 📅</h3>
+          <button class="close-btn" @click="selectedDayModal = null">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="day-modal-list">
+            <div 
+              v-for="l in selectedDayModal.lessons" 
+              :key="l.id" 
+              class="day-modal-item"
+              :class="getSubjectClass(l.subject)"
+              @click="openLessonDetails(l); selectedDayModal = null"
+            >
+              <div class="d-item-time">⏰ {{ formatTime(l.start_time) }}</div>
+              <div class="d-item-info">
+                <strong>{{ l.title }}</strong>
+                <span class="muted text-small">
+                  {{ isMentor ? 'Ученик: ' + l.student_name : 'Наставник: ' + l.mentor_name }}
+                </span>
+              </div>
+              <span class="arrow-icon">→</span>
+            </div>
+          </div>
+          <div v-if="isMentor" class="modal-footer mt-4">
+            <button class="button small" @click="openCreateModal(selectedDayModal.dateKey); selectedDayModal = null">
+              ➕ Запланировать урок на этот день
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -258,8 +515,19 @@ export default {
       myStudents: [],
       loading: true,
       submitting: false,
+      
+      // 'month' | 'week' | 'list'
+      calView: 'month',
+      currentDate: new Date(),
+      weekDayNames: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
+
+      // Для режима списка
       filterTab: 'upcoming', // 'upcoming' | 'past' | 'all'
+
+      // Модальные окна
       showCreateModal: false,
+      selectedLessonDetail: null,
+      selectedDayModal: null,
 
       newLesson: {
         student_id: '',
@@ -282,6 +550,107 @@ export default {
     hasTelegram() {
       return !!this.profile?.telegram_id
     },
+
+    // Группировка уроков по дате (в формате YYYY-MM-DD по МСК)
+    lessonsByDate() {
+      const map = {}
+      for (const l of this.lessons) {
+        if (!l.start_time) continue
+        const key = this.getMskDateKey(new Date(l.start_time))
+        if (!map[key]) {
+          map[key] = []
+        }
+        map[key].push(l)
+      }
+      for (const key in map) {
+        map[key].sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
+      }
+      return map
+    },
+
+    // Заголовок периода (Google Calendar toolbar title)
+    periodTitle() {
+      if (this.calView === 'month') {
+        const str = this.currentDate.toLocaleDateString('ru-RU', {
+          month: 'long',
+          year: 'numeric'
+        })
+        return str.charAt(0).toUpperCase() + str.slice(1)
+      } else if (this.calView === 'week') {
+        const curr = new Date(this.currentDate)
+        const dayOfWeek = (curr.getDay() + 6) % 7
+        const monday = new Date(curr.getFullYear(), curr.getMonth(), curr.getDate() - dayOfWeek)
+        const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6)
+        
+        const monStr = monday.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
+        const sunStr = sunday.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })
+        return `${monStr} – ${sunStr}`
+      }
+      return 'Все запланированные занятия'
+    },
+
+    // Генерация ячеек для сетки месяца (35 или 42 ячейки)
+    monthCalendarCells() {
+      const year = this.currentDate.getFullYear()
+      const month = this.currentDate.getMonth()
+      
+      const firstDay = new Date(year, month, 1)
+      const startDayOfWeek = (firstDay.getDay() + 6) % 7 // Пн=0 .. Вс=6
+      const startDate = new Date(year, month, 1 - startDayOfWeek)
+
+      const lastDayOfMonth = new Date(year, month + 1, 0)
+      const totalRequired = startDayOfWeek + lastDayOfMonth.getDate()
+      const totalCells = totalRequired > 35 ? 42 : 35
+
+      const cells = []
+      const todayKey = this.getMskDateKey(new Date())
+
+      for (let i = 0; i < totalCells; i++) {
+        const cellDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i)
+        const dateKey = this.getMskDateKey(cellDate)
+        const isCurrentMonth = cellDate.getMonth() === month
+        const dayLessons = this.lessonsByDate[dateKey] || []
+
+        cells.push({
+          date: cellDate,
+          dateKey,
+          dayNumber: cellDate.getDate(),
+          isCurrentMonth,
+          isToday: dateKey === todayKey,
+          lessons: dayLessons
+        })
+      }
+      return cells
+    },
+
+    // Генерация колонок для сетки недели (7 дней)
+    weekDays() {
+      const curr = new Date(this.currentDate)
+      const dayOfWeek = (curr.getDay() + 6) % 7
+      const monday = new Date(curr.getFullYear(), curr.getMonth(), curr.getDate() - dayOfWeek)
+
+      const days = []
+      const todayKey = this.getMskDateKey(new Date())
+      const dayNames = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i)
+        const dateKey = this.getMskDateKey(d)
+        const dayLessons = this.lessonsByDate[dateKey] || []
+
+        days.push({
+          date: d,
+          dateKey,
+          dayName: dayNames[i],
+          dayNumber: d.getDate(),
+          monthName: d.toLocaleDateString('ru-RU', { month: 'short' }),
+          isToday: dateKey === todayKey,
+          lessons: dayLessons
+        })
+      }
+      return days
+    },
+
     upcomingLessons() {
       const now = new Date()
       return this.lessons.filter(l => new Date(l.start_time) >= now)
@@ -326,13 +695,61 @@ export default {
       }
     },
 
-    openCreateModal() {
-      const tomorrow = new Date()
-      tomorrow.setDate(tomorrow.getDate() + 1)
-      tomorrow.setHours(16, 0, 0, 0)
-      
+    // Навигация календаря
+    goToToday() {
+      this.currentDate = new Date()
+    },
+    navPrev() {
+      const d = new Date(this.currentDate)
+      if (this.calView === 'month') {
+        this.currentDate = new Date(d.getFullYear(), d.getMonth() - 1, 1)
+      } else if (this.calView === 'week') {
+        this.currentDate = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 7)
+      }
+    },
+    navNext() {
+      const d = new Date(this.currentDate)
+      if (this.calView === 'month') {
+        this.currentDate = new Date(d.getFullYear(), d.getMonth() + 1, 1)
+      } else if (this.calView === 'week') {
+        this.currentDate = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7)
+      }
+    },
+
+    onDayClick(cell) {
+      if (cell.lessons.length > 0) {
+        this.openDayLessonsModal(cell)
+      } else if (this.isMentor) {
+        this.openCreateModal(cell.dateKey)
+      }
+    },
+
+    openLessonDetails(lesson) {
+      this.selectedLessonDetail = lesson
+    },
+
+    openDayLessonsModal(cell) {
+      this.selectedDayModal = cell
+    },
+
+    async deleteFromDetailModal(lessonId) {
+      await this.deleteLesson(lessonId)
+      this.selectedLessonDetail = null
+    },
+
+    openCreateModal(dateKey = null) {
+      let initialDate
+      if (dateKey) {
+        const parts = dateKey.split('-')
+        initialDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 16, 0, 0)
+      } else {
+        initialDate = new Date()
+        initialDate.setDate(initialDate.getDate() + 1)
+        initialDate.setHours(16, 0, 0, 0)
+      }
+
       const pad = (n) => String(n).padStart(2, '0')
-      const localISO = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T${pad(tomorrow.getHours())}:${pad(tomorrow.getMinutes())}`
+      const localISO = `${initialDate.getFullYear()}-${pad(initialDate.getMonth() + 1)}-${pad(initialDate.getDate())}T${pad(initialDate.getHours())}:${pad(initialDate.getMinutes())}`
 
       this.newLesson = {
         student_id: this.myStudents.length > 0 ? this.myStudents[0].id : '',
@@ -382,6 +799,32 @@ export default {
       }
     },
 
+    // Date formatting helpers
+    getMskDateKey(dateObj) {
+      try {
+        const formatter = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Europe/Moscow',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        })
+        return formatter.format(dateObj)
+      } catch (e) {
+        const pad = (n) => String(n).padStart(2, '0')
+        return `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}`
+      }
+    },
+
+    formatTime(dateStr) {
+      if (!dateStr) return ''
+      const d = new Date(dateStr)
+      return d.toLocaleTimeString('ru-RU', {
+        timeZone: 'Europe/Moscow',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    },
+
     formatDate(dateStr) {
       if (!dateStr) return '—'
       const d = new Date(dateStr)
@@ -394,6 +837,15 @@ export default {
         minute: '2-digit',
       })
       return `${formatted} МСК`
+    },
+
+    formatDayTitle(dateObj) {
+      if (!dateObj) return ''
+      return dateObj.toLocaleDateString('ru-RU', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long'
+      })
     },
 
     formatRelativeTime(dateStr) {
@@ -441,8 +893,9 @@ export default {
   animation: fadeIn 0.3s ease-out;
 }
 
+/* ЗАГОЛОВОК СТРАНИЦЫ */
 .header-section {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .header-content {
@@ -462,63 +915,508 @@ h1 {
   font-size: 26px;
   font-weight: 800;
   color: var(--text-primary);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
-.subtitle {
+.subtitle-wrap {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.subtitle-text {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 13.5px;
   line-height: 1.4;
+}
+
+/* ИНЛАЙН СТАТУС TELEGRAM */
+.tg-inline-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid rgba(0, 255, 136, 0.25);
+  color: var(--accent);
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tg-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--accent);
 }
 
 .add-lesson-btn {
   white-space: nowrap;
 }
 
-/* TG БАННЕР */
-.tg-status-banner {
+/* ПАНЕЛЬ УПРАВЛЕНИЯ КАЛЕНДАРЕМ */
+.cal-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 14px 20px;
+  margin-bottom: 20px;
+  border-radius: 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+}
+
+.cal-toolbar-left {
   display: flex;
   align-items: center;
-  gap: 12px;
-  background: rgba(255, 204, 0, 0.08);
-  border: 1px solid rgba(255, 204, 0, 0.25);
-  border-radius: 12px;
-  padding: 12px 16px;
-  margin-top: 16px;
+  gap: 14px;
+}
+
+.cal-today-btn {
+  padding: 6px 14px;
   font-size: 13px;
+  font-weight: 700;
 }
 
-.tg-status-banner.linked {
-  background: rgba(0, 255, 136, 0.06);
-  border-color: rgba(0, 255, 136, 0.25);
+.cal-nav-group {
+  display: flex;
+  gap: 4px;
 }
 
-.tg-status-icon {
-  font-size: 20px;
+.cal-nav-btn {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.2s ease;
 }
 
-.tg-status-text {
-  flex: 1;
+.cal-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--border-light);
+  transform: translateY(-1px);
+}
+
+.cal-period-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
   color: var(--text-primary);
 }
 
-.tg-status-text strong {
-  color: var(--accent);
-  margin-right: 6px;
+/* ПЕРЕКЛЮЧАТЕЛЬ РЕЖИМОВ */
+.view-mode-tabs {
+  display: flex;
+  background: var(--bg-tertiary);
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  gap: 4px;
 }
 
-.tg-status-banner:not(.linked) .tg-status-text strong {
-  color: #ffcc00;
-}
-
-.tg-link-btn {
-  color: #ffcc00;
-  font-weight: 700;
-  text-decoration: underline;
+.view-mode-tab {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  padding: 6px 14px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
   white-space: nowrap;
 }
 
-/* ФИЛЬТРЫ */
+.view-mode-tab:hover {
+  color: var(--text-primary);
+}
+
+.view-mode-tab.active {
+  background: var(--accent);
+  color: #000;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0, 255, 136, 0.3);
+}
+
+/* ======================================================== */
+/* 1. СЕТКА МЕСЯЦА (GOOGLE CALENDAR MONTH VIEW)            */
+/* ======================================================== */
+.month-view-container {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.month-weekdays-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--border);
+}
+
+.weekday-header-cell {
+  padding: 12px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.month-day-cell {
+  min-height: 110px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  transition: background 0.15s ease;
+  position: relative;
+  cursor: pointer;
+}
+
+.month-day-cell:nth-child(7n) {
+  border-right: none;
+}
+
+.month-day-cell:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.month-day-cell.other-month {
+  background: rgba(0, 0, 0, 0.2);
+  opacity: 0.45;
+}
+
+.month-day-cell.is-today {
+  background: rgba(0, 255, 136, 0.03);
+}
+
+.day-cell-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.day-number-badge {
+  font-size: 12px;
+  font-weight: 700;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--text-secondary);
+}
+
+.today-circle {
+  background: var(--accent) !important;
+  color: #000 !important;
+  font-weight: 800 !important;
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.4);
+}
+
+.day-quick-add {
+  opacity: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.month-day-cell:hover .day-quick-add {
+  opacity: 1;
+}
+
+.day-quick-add:hover {
+  background: var(--accent);
+  color: #000;
+}
+
+/* СОБЫТИЯ В ДНЕ */
+.day-events-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.cal-event-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.cal-event-chip:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.2);
+}
+
+.cal-event-chip.is-past {
+  opacity: 0.6;
+}
+
+.chip-time {
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.chip-subject-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-more-chip {
+  font-size: 10px;
+  color: var(--accent);
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.cal-more-chip:hover {
+  text-decoration: underline;
+}
+
+/* ЦВЕТА ПРЕДМЕТОВ */
+.subj-math {
+  background: rgba(0, 255, 136, 0.15);
+  color: #00ff88;
+  border: 1px solid rgba(0, 255, 136, 0.25);
+}
+
+.subj-cs {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+}
+
+.subj-phys {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.25);
+}
+
+/* ======================================================== */
+/* 2. СЕТКА НЕДЕЛИ (WEEK VIEW)                             */
+/* ======================================================== */
+.week-view-container {
+  padding: 0;
+  overflow-x: auto;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.week-columns-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(130px, 1fr));
+  min-width: 800px;
+}
+
+.week-day-col {
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  min-height: 480px;
+}
+
+.week-day-col:last-child {
+  border-right: none;
+}
+
+.week-day-col.is-today {
+  background: rgba(0, 255, 136, 0.02);
+}
+
+.week-col-header {
+  padding: 12px 10px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+
+.week-col-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.week-col-date {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  color: var(--text-primary);
+}
+
+.col-quick-add {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  transition: all 0.15s;
+}
+
+.col-quick-add:hover {
+  opacity: 1;
+  background: var(--accent);
+  color: #000;
+}
+
+.week-col-content {
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.week-col-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100px;
+}
+
+.week-card {
+  padding: 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.week-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+.week-card.is-past {
+  opacity: 0.6;
+}
+
+.week-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.week-time-pill {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.week-dur {
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+.week-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.week-card-person {
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+.week-card-actions {
+  margin-top: 4px;
+}
+
+.week-join-btn {
+  display: block;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.week-join-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* ======================================================== */
+/* 3. СПИСОК (LIST VIEW)                                   */
+/* ======================================================== */
 .filter-tabs {
   display: flex;
   gap: 8px;
@@ -551,7 +1449,6 @@ h1 {
   border-color: var(--accent);
 }
 
-/* СЕТКА УРОКОВ */
 .lessons-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -590,21 +1487,6 @@ h1 {
   border-radius: 8px;
 }
 
-.subj-math {
-  background: rgba(0, 255, 136, 0.15);
-  color: var(--accent);
-}
-
-.subj-cs {
-  background: rgba(102, 126, 234, 0.15);
-  color: #769eff;
-}
-
-.subj-phys {
-  background: rgba(255, 120, 0, 0.15);
-  color: #ff9944;
-}
-
 .duration-badge {
   font-size: 12px;
   color: var(--text-muted);
@@ -639,6 +1521,12 @@ h1 {
   font-size: 16px;
 }
 
+.detail-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
 .time-relative {
   font-size: 11px;
   color: var(--text-muted);
@@ -659,6 +1547,7 @@ h1 {
   color: var(--text-secondary);
   font-size: 12px;
   font-style: italic;
+  white-space: pre-line;
 }
 
 .lesson-actions {
@@ -689,7 +1578,6 @@ h1 {
   padding: 10px 14px;
 }
 
-/* ПУСТОЕ СОСТОЯНИЕ */
 .empty-card {
   text-align: center;
   padding: 48px 24px;
@@ -700,13 +1588,132 @@ h1 {
   margin-bottom: 12px;
 }
 
-/* МОДАЛЬНОЕ ОКНО */
+/* ======================================================== */
+/* МОДАЛЬНЫЕ ОКНА                                          */
+/* ======================================================== */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+}
+
+.lesson-detail-modal,
+.day-lessons-modal {
+  max-width: 480px;
+  width: 100%;
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+}
+
+.detail-badges {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.detail-modal-title {
+  font-size: 20px;
+  font-weight: 800;
+  margin-bottom: 16px;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.lesson-detail-box {
+  background: var(--bg-tertiary);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.modal-actions-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.no-link-box {
+  text-align: center;
+  padding: 10px;
+  background: var(--bg-tertiary);
+  border-radius: 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.delete-action-btn {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+  justify-content: center;
+}
+
+.delete-action-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: #ef4444;
+}
+
+/* ДЕНЬ СО СПИСКОМ УРОКОВ */
+.day-modal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.day-modal-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.day-modal-item:hover {
+  transform: translateX(4px);
+}
+
+.d-item-time {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.d-item-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  margin: 0 14px;
+}
+
+.arrow-icon {
+  font-size: 16px;
+  opacity: 0.7;
+}
+
+/* СОЗДАНИЕ УРОКА МОДАЛКА */
 .create-lesson-modal {
   max-width: 520px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
+  width: 100%;
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 20px;
   padding: 26px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
 }
 
 .modal-header {
@@ -716,7 +1723,8 @@ h1 {
   margin-bottom: 20px;
 }
 
-.modal-header h2 {
+.modal-header h2,
+.modal-header h3 {
   font-size: 20px;
   font-weight: 700;
   margin: 0;
@@ -726,8 +1734,13 @@ h1 {
   background: none;
   border: none;
   color: var(--text-muted);
-  font-size: 28px;
+  font-size: 26px;
   cursor: pointer;
+  line-height: 1;
+}
+
+.close-btn:hover {
+  color: var(--text-primary);
 }
 
 .modal-body {
@@ -797,5 +1810,27 @@ h1 {
   justify-content: flex-end;
   gap: 10px;
   margin-top: 12px;
+}
+
+.full-width {
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .month-day-cell {
+    min-height: 70px;
+    padding: 4px;
+  }
+  .cal-period-title {
+    font-size: 15px;
+  }
+  .view-mode-tab {
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+  .cal-event-chip {
+    font-size: 9px;
+    padding: 2px 4px;
+  }
 }
 </style>

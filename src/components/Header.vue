@@ -24,7 +24,7 @@
 
       <!-- ПРАВАЯ ЧАСТЬ: ПРОФИЛЬ / ВХОД -->
       <div class="header-actions">
-        <router-link v-if="profile" to="/profile" class="profile-pill" :title="profile.email">
+        <router-link v-if="profile" to="/profile" class="profile-pill" :title="profileTitle">
           <div class="avatar-circle">
             {{ profile.name ? profile.name.charAt(0).toUpperCase() : 'U' }}
           </div>
@@ -51,6 +51,15 @@ export default {
   computed: {
     profile() {
       return store.profile
+    },
+    profileTitle() {
+      if (!this.profile) return ''
+      const isTg = this.profile.auth_type === 'telegram' || 
+        (this.profile.email && (this.profile.email.includes('@kogdaurok.local') || this.profile.email.startsWith('telegram_')))
+      if (isTg) {
+        return this.profile.telegram_username ? `@${this.profile.telegram_username}` : (this.profile.name || 'Профиль')
+      }
+      return this.profile.email || this.profile.name || 'Профиль'
     }
   }
 }

@@ -84,7 +84,7 @@
           <div class="assign-controls">
             <select v-model="selectedStudentToAssign" class="input">
               <option value="" disabled>Выберите ученика</option>
-              <option v-for="s in myStudents" :key="s.id" :value="s.id">{{ s.name || s.email }}</option>
+              <option v-for="s in myStudents" :key="s.id" :value="s.id">{{ getStudentDisplayName(s) }}</option>
             </select>
             <button class="button" @click="assignHomework" :disabled="!selectedStudentToAssign">Назначить</button>
           </div>
@@ -249,6 +249,16 @@ export default {
     await this.loadData()
   },
   methods: {
+    getStudentDisplayName(s) {
+      if (!s) return ''
+      if (s.name && s.name.trim()) return s.name
+      if (s.telegram_username) return `@${s.telegram_username}`
+      if (s.email && !s.email.includes('@kogdaurok.local') && !s.email.startsWith('telegram_')) {
+        return s.email
+      }
+      return `Ученик #${s.id}`
+    },
+
     formatDate(dateStr) {
       if (!dateStr) return ''
       return new Date(dateStr).toLocaleString('ru-RU')

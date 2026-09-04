@@ -12,8 +12,15 @@
           {{ profile.name ? profile.name.charAt(0).toUpperCase() : 'U' }}
         </div>
         
-        <h2>{{ profile.name || 'Пользователь' }}</h2>
-        <p class="muted">{{ profile.email }}</p>
+        <div class="user-name-box">
+          <h2 class="user-name-text">{{ profile.name || 'Пользователь' }}</h2>
+          <button class="button small ghost edit-nick-btn" @click="openEditNicknameModal" title="Сменить никнейм">
+            ✏️ Сменить никнейм
+          </button>
+        </div>
+
+        <p v-if="!isTgUser && profile.email" class="muted user-email">{{ profile.email }}</p>
+        <p v-else-if="profile.telegram_username" class="muted user-email">@{{ profile.telegram_username }}</p>
         
         <div class="role-badge" :class="{ mentor: profile.is_mentor }">
           {{ profile.is_mentor ? 'Наставник' : 'Ученик' }}
@@ -73,7 +80,8 @@
             <div v-for="student in myStudents" :key="student.id" class="user-item">
               <div class="user-info">
                 <strong>{{ student.name }}</strong>
-                <span class="muted text-small">{{ student.email }}</span>
+                <span v-if="student.email && !isTgEmail(student.email)" class="muted text-small">{{ student.email }}</span>
+                <span v-else-if="student.telegram_username" class="muted text-small">@{{ student.telegram_username }}</span>
               </div>
               <span class="badge">ID: {{ student.id }}</span>
             </div>
@@ -92,7 +100,8 @@
             <div v-for="mentor in myMentors" :key="mentor.id" class="user-item">
               <div class="user-info">
                 <strong>{{ mentor.name }}</strong>
-                <span class="muted text-small">{{ mentor.email }}</span>
+                <span v-if="mentor.email && !isTgEmail(mentor.email)" class="muted text-small">{{ mentor.email }}</span>
+                <span v-else-if="mentor.telegram_username" class="muted text-small">@{{ mentor.telegram_username }}</span>
               </div>
               <span class="badge">ID: {{ mentor.id }}</span>
             </div>
@@ -107,6 +116,38 @@
           </div>
         </template>
         
+      </div>
+    </div>
+
+    <!-- МОДАЛЬНОЕ ОКНО СМЕНЫ НИКНЕЙМА -->
+    <div v-if="showNicknameModal" class="modal-backdrop" @click.self="showNicknameModal = false">
+      <div class="card modal nickname-modal">
+        <div class="modal-header">
+          <h3>Смена никнейма ✏️</h3>
+          <button class="close-btn" @click="showNicknameModal = false">×</button>
+        </div>
+        <form @submit.prevent="saveNickname" class="modal-body">
+          <p class="muted text-small mb-3">
+            Укажите имя или никнейм, который будет отображаться в уроках и домашних заданиях:
+          </p>
+          <div class="form-group">
+            <label class="form-label">Новый никнейм *</label>
+            <input 
+              v-model="editNicknameInput" 
+              type="text" 
+              class="input" 
+              placeholder="Например: Иван Иванов или MathGenius" 
+              maxlength="64"
+              required 
+            />
+          </div>
+          <div class="modal-footer mt-4">
+            <button type="button" class="button ghost" @click="showNicknameModal = false">Отмена</button>
+            <button type="submit" class="button" :disabled="savingNickname || !editNicknameInput.trim()">
+              {{ savingNickname ? '⏳ Сохранение...' : '✓ Сохранить' }}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
@@ -127,11 +168,19 @@ export default {
       myMentors: [],
       tgCodeToLink: '',
       linkingTg: false,
+      showNicknameModal: false,
+      editNicknameInput: '',
+      savingNickname: false,
     }
   },
   computed: {
     profile() {
       return store.profile
+    },
+    isTgUser() {
+      if (!this.profile) return false
+      return this.profile.auth_type === 'telegram' || 
+        (this.profile.email && (this.profile.email.includes('@kogdaurok.local') || this.profile.email.startsWith('telegram_')))
     }
   },
   async mounted() {
@@ -142,6 +191,37 @@ export default {
     await this.loadMentoringData()
   },
   methods: {
+    isTgEmail(email) {
+      if (!email) return true
+      return email.includes('@kogdaurok.local') || email.startsWith('telegram_')
+    },
+
+    openEditNicknameModal() {
+      this.editNicknameInput = this.profile?.name || ''
+      this.showNicknameModal = true
+    },
+
+    async saveNickname() {
+      const trimmed = this.editNicknameInput.trim()
+      if (!trimmed) {
+        notify.warning('Никнейм не может быть пустым')
+        return
+      }
+      try {
+        this.savingNickname = true
+        await api.updateProfile(trimmed)
+        if (store.profile) {
+          store.profile.name = trimmed
+        }
+        notify.success('Никнейм успешно обновлен!')
+        this.showNicknameModal = false
+      } catch (e) {
+        notify.error(e.message || 'Ошибка обновления никнейма')
+      } finally {
+        this.savingNickname = false
+      }
+    },
+
     async loadMentoringData() {
       try {
         if (this.profile.is_mentor) {
@@ -374,6 +454,94 @@ export default {
 
 .mb-2 { margin-bottom: 8px; }
 .mt-4 { margin-top: 16px; }
+
+.user-name-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.user-name-text {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  word-break: break-word;
+}
+
+.edit-nick-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--accent);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.edit-nick-btn:hover {
+  background: rgba(0, 255, 136, 0.12);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+}
+
+.nickname-modal {
+  max-width: 440px;
+  width: 100%;
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  border-radius: 16px;
+  background: #18181b;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+}
+
+.close-btn:hover {
+  color: var(--text-primary);
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
